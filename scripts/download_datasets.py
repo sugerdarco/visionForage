@@ -50,6 +50,7 @@ def download_archive(destination: Path, spec: dict) -> None:
 def checked_members(archive: zipfile.ZipFile, spec: dict) -> list[zipfile.ZipInfo]:
     files = []
     names = set()
+    extensions = spec.get("file_extensions", (".jpg", ".jpeg", ".png"))
     for member in archive.infolist():
         path = PurePosixPath(member.filename)
         mode = stat.S_IFMT(member.external_attr >> 16)
@@ -65,14 +66,14 @@ def checked_members(archive: zipfile.ZipFile, spec: dict) -> list[zipfile.ZipInf
             raise ValueError(f"Unsafe or duplicate ZIP entry: {member.filename}")
         names.add(member.filename)
         if not member.is_dir():
-            if path.suffix.lower() not in (".jpg", ".jpeg", ".png"):
+            if path.suffix.lower() not in extensions:
                 raise ValueError(f"Unexpected dataset file: {member.filename}")
             files.append(member)
     if sum(member.file_size for member in files) != spec["unpacked_bytes"]:
         raise ValueError("Unpacked size differs from the pinned dataset")
     counts = Counter(str(PurePosixPath(member.filename).parent) for member in files)
     if dict(counts) != spec["counts"]:
-        raise ValueError("Image counts differ from the pinned dataset")
+        raise ValueError("File counts differ from the pinned dataset")
     return files
 
 
@@ -127,7 +128,7 @@ def prepare_dataset(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("dataset", choices=("casting",))
+    parser.add_argument("dataset", choices=("casting", "neu-det"))
     parser.add_argument("--data-dir", type=Path, default=Path("data"))
     parser.add_argument(
         "--archive", type=Path, help="Use an existing ZIP; its checksum must match"

@@ -128,6 +128,39 @@ Run `make test` for the offline tests and `make lint` for Python lint and shell
 syntax checks. Lint uses Ruff 0.14.1 through uv, pinned to keep checks consistent
 without adding a development tool to the training environment.
 
+## NEU-DET dataset
+
+```bash
+python3 scripts/download_datasets.py neu-det
+# The same --data-dir and --archive options work for this dataset.
+```
+
+This uses the NEU-DET ZIP linked by Kechen Song and Yunhui Yan on the
+[authors' dataset page](https://faculty.neu.edu.cn/songkc/en/zdylm/263265/list/).
+We use the original archive because it keeps image/annotation pairs together
+without introducing a third-party train/validation split. The authors' page
+requests citation but does not state an explicit dataset license.
+
+Files are preserved under `data/raw/neu-det-v1/NEU-DET/IMAGES/` and
+`ANNOTATIONS/`. Here `v1` means our first checksum-pinned snapshot; the upstream
+download has no published version number. Source details and measured counts
+are recorded in [datasets/neu-det.json](datasets/neu-det.json).
+
+The snapshot contains 1,800 RGB JPEGs at 200×200 pixels, 1,800 Pascal VOC XML
+annotations, and 4,189 boxes across six classes. A full audit decoded every
+image, matched image/XML file stems, checked dimensions, and found all boxes
+within the image bounds. Two details matter when importing these annotations:
+
+- 174 XML `filename` fields omit the image extension. Pair image and annotation
+  files by their shared stem instead of treating this field as a full path.
+- 123 images contain multiple object classes. Read each object's `name` from
+  the XML; the image filename's class prefix is not the label for every box.
+
+XML is allowed only when declared in a dataset's metadata. Existing checksum,
+safe extraction, and rerun verification checks apply to annotations as well as
+images. This step does not convert labels to YOLO format or create new splits;
+those belong in the manifest and training adapters.
+
 ## Planned service connections
 
 The web app calls the FastAPI API. PostgreSQL stores metadata, and S3-compatible

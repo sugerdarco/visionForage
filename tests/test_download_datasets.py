@@ -122,6 +122,40 @@ class DownloadDatasetTest(unittest.TestCase):
             prepare_dataset(self.spec, self.data, self.archive)
         self.assertEqual(image.read_bytes(), b"changed")
 
+    def add_annotation(self) -> None:
+        content = b"<annotation><filename>image.jpeg</filename></annotation>"
+        with zipfile.ZipFile(self.archive, "a") as archive:
+            archive.writestr("annotations/image.xml", content)
+        self.spec["unpacked_bytes"] += len(content)
+        self.spec["counts"]["annotations"] = 1
+        self.update_checksum()
+
+    def test_detection_annotations_are_extracted_and_verified_on_rerun(self) -> None:
+        self.add_annotation()
+        self.spec["file_extensions"] = [".jpeg", ".xml"]
+        result = prepare_dataset(self.spec, self.data, self.archive)
+        annotation = result / "annotations/image.xml"
+        original = annotation.read_bytes()
+        self.assertEqual(prepare_dataset(self.spec, self.data, self.archive), result)
+        annotation.write_bytes(original.replace(b"image.jpeg", b"other.jpeg"))
+        with self.assertRaisesRegex(ValueError, "file changed"):
+            prepare_dataset(self.spec, self.data, self.archive)
+
+    def test_classification_dataset_does_not_allow_xml(self) -> None:
+        self.add_annotation()
+        with self.assertRaisesRegex(ValueError, "Unexpected dataset file"):
+            prepare_dataset(self.spec, self.data, self.archive)
+        self.assertFalse(self.data.exists())
+
+    def test_detection_dataset_rejects_unlisted_file_types(self) -> None:
+        self.spec["file_extensions"] = [".jpeg", ".xml"]
+        with zipfile.ZipFile(self.archive, "a") as archive:
+            archive.writestr("annotations/script.py", b"print('unexpected')")
+        self.update_checksum()
+        with self.assertRaisesRegex(ValueError, "Unexpected dataset file"):
+            prepare_dataset(self.spec, self.data, self.archive)
+        self.assertFalse(self.data.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,35 @@
+{
+  "name": "neu-det",
+  "version": 1,
+  "version_note": "VisionForge snapshot 1 of the unversioned upstream ZIP, retrieved 2026-10-16.",
+  "authors": ["Kechen Song", "Yunhui Yan"],
+  "source": "https://faculty.neu.edu.cn/songkc/en/zdylm/263265/list/",
+  "url": "https://drive.usercontent.google.com/download?id=1qrdZlaDi272eA79b0uCwwqPrm2Q_WI3k&export=download&confirm=t",
+  "license": null,
+  "license_note": "The authors' dataset page requests citation but does not state an explicit dataset license.",
+  "sha256": "cf04bb0b05d364f23e05031b191b20b908a0e5eb11466df74ee7fba98ec835d5",
+  "checksum_origin": "Measured from the authors' linked NEU-DET.zip on 2026-10-16; not a publisher-provided checksum.",
+  "archive_bytes": 27607059,
+  "unpacked_bytes": 28201919,
+  "file_extensions": [".jpg", ".xml"],
+  "annotation_format": "Pascal VOC XML",
+  "counts": {
+    "NEU-DET/ANNOTATIONS": 1800,
+    "NEU-DET/IMAGES": 1800
+  },
+  "audit": {
+    "image_size": [200, 200],
+    "image_mode": "RGB",
+    "matched_image_annotation_stems": 1800,
+    "xml_filenames_without_extension": 174,
+    "images_with_multiple_object_classes": 123,
+    "box_counts": {
+      "crazing": 689,
+      "inclusion": 1011,
+      "patches": 881,
+      "pitted_surface": 432,
+      "rolled-in_scale": 628,
+      "scratches": 548
+    }
+  }
+}
