@@ -89,6 +89,45 @@ uv pip compile requirements/torch.in --python python3.11 \
 # Repeat with cpu in place of cu126 to update the CPU list.
 ```
 
+## Casting dataset
+
+```bash
+python3 scripts/download_datasets.py casting
+# An existing copy of the same archive also works, without network access:
+python3 scripts/download_datasets.py casting --archive /path/to/casting-v2.zip
+```
+
+Use `--data-dir /persistent/path/to/data` on the remote host. Archives go in
+`data/downloads/` and extracted images in `data/raw/casting-v2/`. Neither is
+committed. The downloader uses Python 3.11+ standard-library modules, so it needs
+no GPU, PyTorch, or Kaggle client installation. The public download currently
+works without credentials; `--archive` supports downloading through Kaggle's
+website if its access requirements change.
+
+The source is Ravirajsinh Dabhi's
+[casting product image dataset](https://www.kaggle.com/datasets/ravirajsinh45/real-life-industrial-dataset-of-casting-product),
+version 2, listed under **CC BY-NC-ND 4.0**. See
+[datasets/casting.json](datasets/casting.json) for attribution, source, sizes,
+folder counts, and the SHA-256 measured from our download. This is a project
+checksum, not an independently published checksum from the dataset author.
+
+The archive contains 7,348 images under `casting_data/casting_data/` (6,633 train,
+715 test), plus 1,300 originals under `casting_512x512/casting_512x512/`. The source
+says the 300×300 images already include augmentation. These collections stay
+separate: the downloader preserves the supplied folders and does not create new
+splits. Duplicate and related-image checks belong in dataset preparation before
+training; a random image split could overstate generalization. Inspection of all
+8,648 image headers found RGB JPEGs, despite their grayscale appearance.
+
+Downloads are verified before extraction. Incomplete downloads and failed
+extractions are discarded; existing archives and extracted files are checked on
+reruns. Changed files cause an error instead of being silently overwritten. The
+tradeoff is a small amount of disk I/O on each rerun for reproducible inputs.
+
+Run `make test` for the offline tests and `make lint` for Python lint and shell
+syntax checks. Lint uses Ruff 0.14.1 through uv, pinned to keep checks consistent
+without adding a development tool to the training environment.
+
 ## Planned service connections
 
 The web app calls the FastAPI API. PostgreSQL stores metadata, and S3-compatible

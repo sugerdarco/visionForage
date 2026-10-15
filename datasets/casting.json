@@ -1,0 +1,20 @@
+{
+  "name": "casting",
+  "version": 2,
+  "author": "Ravirajsinh Dabhi",
+  "source": "https://www.kaggle.com/datasets/ravirajsinh45/real-life-industrial-dataset-of-casting-product",
+  "url": "https://www.kaggle.com/api/v1/datasets/download/ravirajsinh45/real-life-industrial-dataset-of-casting-product?datasetVersionNumber=2",
+  "license": "CC-BY-NC-ND-4.0",
+  "sha256": "a11236976a65d77edd41fa3f8a2803a583157bd7401efc5e7ef5532cf3a00437",
+  "checksum_origin": "Measured from the Kaggle version 2 archive on 2026-10-15; not a publisher-provided checksum.",
+  "archive_bytes": 104965698,
+  "unpacked_bytes": 104708903,
+  "counts": {
+    "casting_512x512/casting_512x512/def_front": 781,
+    "casting_512x512/casting_512x512/ok_front": 519,
+    "casting_data/casting_data/test/def_front": 453,
+    "casting_data/casting_data/test/ok_front": 262,
+    "casting_data/casting_data/train/def_front": 3758,
+    "casting_data/casting_data/train/ok_front": 2875
+  }
+}
