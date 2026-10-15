@@ -1,0 +1,4 @@
+# Tensor operations, autograd, and mixed precision for training.
+torch==2.13.0
+# Image transforms, vision models, and detection operators.
+torchvision==0.28.0
