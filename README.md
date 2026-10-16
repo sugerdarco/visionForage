@@ -272,10 +272,75 @@ manifest = load_manifest("manifest.json")
 training_samples = manifest.samples_for("train")
 ```
 
-The loader reads only the manifest. Image decoding, byte checksums, duplicate
-content checks across different keys, and split creation belong in the next
-preparation step. Immutability protects the loaded records; it does not freeze
-the files referenced by their keys or prevent changes to the JSON on disk.
+The manifest loader reads only JSON. The casting preparation command handles
+checksums, duplicate auditing, and split creation; the dataset below decodes images.
+Immutability protects the loaded records; it does not freeze the files referenced
+by their keys or prevent changes to the JSON on disk.
+
+## Classification images and transforms
+
+`ClassificationDataset` connects the frozen manifest to PyTorch's `DataLoader`.
+It reads only the selected split, preserves the manifest's class indices, and
+opens images lazily on CPU. No folder scan, database, or GPU is needed. Missing
+or corrupt images fail with their image key; symbolic links outside the configured
+data root are rejected. Source integrity is checked during dataset preparation,
+not by hashing every image again in every training epoch.
+
+Run this with the prepared Python environment from the repository root:
+
+```python
+import torch
+from torch.utils.data import DataLoader
+from vf_ml.classification import ClassificationDataset
+from vf_ml.manifest import load_manifest
+from vf_ml.transforms import ClassificationTransforms
+
+torch.manual_seed(42)
+manifest = load_manifest("data/manifests/casting-v2/manifest.json")
+config = ClassificationTransforms(horizontal_flip=True, vertical_flip=True)
+dataset = ClassificationDataset(manifest, "data", "train", config)
+loader = DataLoader(
+    dataset, batch_size=16, shuffle=True, num_workers=0,
+    generator=torch.Generator().manual_seed(42),
+)
+batch = next(iter(loader))
+print(batch["image"].shape)  # [16, 3, 224, 224], float32 on CPU
+print(batch["target"])      # int64 class indices: ok=0, defective=1
+print(batch["image_key"])   # keys for tracing predictions and mistakes
+```
+
+On the VM, replace `data` with `/usershome/t25089/visionforge/data` in both paths.
+Start with `num_workers=0` for straightforward debugging and low memory use locally.
+Multiple workers can overlap decoding with training; they also consume more RAM.
+Spawned workers are tested, but scripts using them need an `if __name__ == "__main__":`
+guard. Seed the loader generator for worker randomness and shuffling; with zero
+workers, augmentation uses the main process's PyTorch RNG. Reproducibility assumes
+the same pinned software, seed, and worker configuration.
+
+We use the already-installed [torchvision v2 transforms](https://docs.pytorch.org/vision/stable/transforms.html)
+to avoid an additional augmentation dependency. The shared pipeline converts PIL
+images (including grayscale) to three RGB channels, then scales pixels to `[0, 1]`
+and applies configurable ImageNet mean/std normalization. Defaults are 224 pixels,
+mean `(0.485, 0.456, 0.406)`, and std `(0.229, 0.224, 0.225)`.
+
+- **Training:** random resized crop (85–100% area, aspect ratio 0.95–1.05),
+  rotation up to 10 degrees, and brightness/contrast jitter of 0.1. Horizontal and
+  vertical flips are disabled by default; the casting example enables both.
+  Orientation-sensitive projects should keep them disabled. Crops can remove
+  small defects and rotations introduce border pixels, so these settings need
+  validation when we train the baseline.
+- **Validation/test:** fixed bilinear resize of the full image, with antialiasing
+  and no random augmentation. This preserves edge content that center cropping
+  could remove. It preserves the shape of square casting images but stretches
+  non-square inputs; this is an explicit task-specific choice.
+
+`classification_transform(config)` exposes the same deterministic path for future
+inference. Store `dataclasses.asdict(config)` with model artifacts and reconstruct
+it with `ClassificationTransforms(**saved_config)` to reuse preprocessing.
+Normalization must match the selected pretrained model; the training step will
+check its model settings. No classifier or training loop is implemented yet.
+The lightweight `vf_ml.manifest` module remains independent of PyTorch; API code
+should import that module, not the classification modules.
 
 ## Planned service connections
 
