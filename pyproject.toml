@@ -1,0 +1,14 @@
+[build-system]
+# Use the build backend already pinned in the training environments.
+requires = ["setuptools==78.1.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vf-ml"
+version = "0.1.0"
+description = "Shared data and training code for VisionForge"
+requires-python = ">=3.11"
+
+[tool.setuptools.packages.find]
+where = ["packages"]
+include = ["vf_ml*"]

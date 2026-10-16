@@ -17,3 +17,6 @@ runs/
 *.pth
 *.onnx
 .DS_Store
+*.egg-info/
+build/
+dist/

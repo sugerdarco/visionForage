@@ -52,8 +52,9 @@ The setup requires Bash, curl, tar, coreutils, and network access. It verifies t
 uv archive's SHA-256 checksum, then installs uv 0.12.19, Python 3.11.16, and a
 virtual environment inside the supplied directory.
 It does not modify shell startup files or install packages into system Python.
-Rerunning it synchronizes that environment to the pinned requirements, removing
-packages outside the lock; use this directory only for VisionForge.
+Rerunning it synchronizes the pinned requirements and installs the shared `vf_ml`
+package from the checkout in editable mode. Other installed packages are removed;
+use this environment only for VisionForge.
 
 The GPU example uses scratch storage. Its contents can be recreated, but the
 directory may be cleaned by the host; keep datasets and experiment results in
@@ -78,7 +79,7 @@ backpropagation, an optimizer step, and torchvision NMS. CUDA mode requires an
 explicit single GPU selection and fails rather than silently falling back to CPU.
 It verifies runtime compatibility, not model accuracy or training throughput.
 
-Run the setup guardrail tests with `python3 -m unittest discover -s tests`.
+Run the offline tests with `make test`; it includes the local package on the import path.
 The dependency lists are generated from `requirements/torch.in`, including
 transitive dependencies, separately for each backend:
 
@@ -160,6 +161,65 @@ XML is allowed only when declared in a dataset's metadata. Existing checksum,
 safe extraction, and rerun verification checks apply to annotations as well as
 images. This step does not convert labels to YOLO format or create new splits;
 those belong in the manifest and training adapters.
+
+## Dataset manifest
+
+`vf_ml.manifest` is the shared contract between dataset preparation and training.
+It loads JSON into immutable records using only the Python standard library.
+Workers will consume these snapshots instead of querying changing database rows.
+JSON keeps the inputs inspectable and portable; strict validation catches mistakes
+before a GPU job starts. Unknown fields and unsupported schema versions fail
+explicitly so that typos or future format changes cannot be silently ignored.
+
+A minimal classification manifest looks like this (the key is illustrative):
+
+```json
+{
+  "schema_version": 1,
+  "task_type": "classification",
+  "class_map": {"ok": 0, "defective": 1},
+  "samples": [
+    {
+      "image_key": "project/image-001.jpg",
+      "split": "train",
+      "labels": [{"class_index": 1, "bbox": null}]
+    }
+  ]
+}
+```
+
+- `class_map` assigns unique, contiguous indices starting at zero. JSON field
+  order does not determine model output indices.
+- `image_key` is a normalized relative key within a configured image bucket or
+  local data root. Absolute paths, URLs, traversal, and repeated keys are rejected.
+- `split` is `train`, `val`, or `test`. A manifest must contain images, but need
+  not contain every split; the training entry point will require its needed splits.
+- Classification has exactly one label and a null box. Detection uses the same
+  structure with `task_type: "detection"` and boxes such as
+  `{"class_index": 1, "bbox": [0.1, 0.2, 0.3, 0.4]}`. Coordinates are normalized
+  **top-left x, top-left y, width, height**, not YOLO center coordinates. Boxes
+  need positive area and must fit inside the image (edge tolerance: 1e-9).
+  An empty detection label list means an annotated image with no objects.
+
+After running the environment setup from this checkout, inspect a manifest with:
+
+```bash
+"$HOME/.local/share/visionforge/venv-cpu/bin/python" -m vf_ml.manifest /path/to/manifest.json
+```
+
+Or load it in Python:
+
+```python
+from vf_ml.manifest import load_manifest
+
+manifest = load_manifest("manifest.json")
+training_samples = manifest.samples_for("train")
+```
+
+The loader reads only the manifest. Image decoding, byte checksums, duplicate
+content checks across different keys, and split creation belong in the next
+preparation step. Immutability protects the loaded records; it does not freeze
+the files referenced by their keys or prevent changes to the JSON on disk.
 
 ## Planned service connections
 
