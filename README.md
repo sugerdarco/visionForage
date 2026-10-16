@@ -79,7 +79,8 @@ backpropagation, an optimizer step, and torchvision NMS. CUDA mode requires an
 explicit single GPU selection and fails rather than silently falling back to CPU.
 It verifies runtime compatibility, not model accuracy or training throughput.
 
-Run the offline tests with `make test`; it includes the local package on the import path.
+Run the offline tests with `make test PYTHON="$HOME/.local/share/visionforge/venv-cpu/bin/python"`;
+it includes the local package on the import path and uses the pinned image decoder.
 The dependency lists are generated from `requirements/torch.in`, including
 transitive dependencies, separately for each backend:
 
@@ -116,8 +117,8 @@ The archive contains 7,348 images under `casting_data/casting_data/` (6,633 trai
 715 test), plus 1,300 originals under `casting_512x512/casting_512x512/`. The source
 says the 300×300 images already include augmentation. These collections stay
 separate: the downloader preserves the supplied folders and does not create new
-splits. Duplicate and related-image checks belong in dataset preparation before
-training; a random image split could overstate generalization. Inspection of all
+splits. The preparation command below checks exact duplicates; related augmented
+images can still overstate generalization. Inspection of all
 8,648 image headers found RGB JPEGs, despite their grayscale appearance.
 
 Downloads are verified before extraction. Incomplete downloads and failed
@@ -128,6 +129,61 @@ tradeoff is a small amount of disk I/O on each rerun for reproducible inputs.
 Run `make test` for the offline tests and `make lint` for Python lint and shell
 syntax checks. Lint uses Ruff 0.14.1 through uv, pinned to keep checks consistent
 without adding a development tool to the training environment.
+
+### Prepare casting splits
+
+From the repository root, after setting up the training environment:
+
+```bash
+"$HOME/.local/share/visionforge/venv-cpu/bin/python" -m scripts.prepare_casting
+# On the VM, from its source checkout:
+/var/tmp/visionforge-t25089/venv-cu126/bin/python -m scripts.prepare_casting \
+  --data-dir /usershome/t25089/visionforge/data
+```
+
+The command reuses the downloader to verify the pinned archive and extracted files,
+then decodes the 300×300 images with Pillow. It needs only CPU and user-writable
+storage, so the same preparation works locally and on the VM without sudo. Pillow
+is already pinned in both training environments; no extra image-processing stack
+is needed. The separate 512×512 originals are excluded.
+
+Our version 2 audit found **64 exact duplicate pairs crossing the supplied train
+and test folders**, all in `ok_front`, with no conflicting labels. We preserve all
+715 supplied test images and exclude their 64 training copies. Remaining training
+duplicates, if present, are reduced to one image; conflicting labels stop preparation.
+Both file SHA-256 and decoded RGB pixel SHA-256 are recorded, so changing JPEG
+metadata cannot hide an exact pixel duplicate.
+
+With seed `42`, 15% of each remaining training class becomes validation, rounded
+to the nearest image. Selection ranks a SHA-256 of the seed and pixel digest,
+making it independent of directory ordering. Each class retains at least one
+training and validation image. Preserving the supplied test set gives continuity
+with the source split; the tradeoff is that the final ratios differ from 70/15/15.
+
+| Split | ok (0) | defective (1) | Total |
+| --- | ---: | ---: | ---: |
+| Train | 2,389 | 3,194 | 5,583 |
+| Validation | 422 | 564 | 986 |
+| Test | 262 | 453 | 715 |
+
+Outputs go to `DATA_DIR/manifests/casting-v2/` and stay out of Git:
+
+- `manifest.json` uses the shared `vf_ml.manifest` contract. Image keys are relative
+  to `DATA_DIR`, allowing the same manifest to resolve images on either machine
+  and later become object-storage keys for training workers.
+- `report.json` records source metadata/checksum, seed, split method, decoder
+  version, per-image checksums and assignments, duplicate exclusions, counts, and
+  the manifest checksum. It supports auditing without changing the training contract.
+
+Rerunning verifies identical output; changed settings or files cannot silently
+replace the snapshot. Use a new `--output` directory when changing `--seed` or
+`--val-fraction`. Source images are never moved or deleted.
+
+**Evaluation limitation:** these images were already augmented upstream, and this
+snapshot has no parent-image mapping. Exact duplicate checks do not detect rotated,
+cropped, or otherwise altered relatives. Related-image leakage remains unresolved;
+the split supports an initial baseline, not a claim of independent production
+generalization. Investigate parent groups before making that claim.
 
 ## NEU-DET dataset
 

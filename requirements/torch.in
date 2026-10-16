@@ -2,3 +2,5 @@
 torch==2.13.0
 # Image transforms, vision models, and detection operators.
 torchvision==0.28.0
+# Decode images for dataset auditing and training; already in both resolved lists.
+pillow==12.3.0
