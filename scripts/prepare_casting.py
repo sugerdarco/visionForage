@@ -5,7 +5,6 @@ from collections import defaultdict
 import hashlib
 import json
 from pathlib import Path
-import tempfile
 from urllib.error import URLError
 import zipfile
 
@@ -13,6 +12,7 @@ import PIL
 from PIL import Image
 
 from scripts.download_datasets import CATALOG, prepare_dataset, sha256
+from scripts.snapshots import publish_snapshot
 from vf_ml.manifest import SPLITS, parse_manifest
 
 
@@ -136,42 +136,6 @@ def build_snapshot(
         "images": records,
     }
     return manifest, report
-
-
-def publish_snapshot(output: Path, manifest: dict, report: dict) -> None:
-    """Publish both files together; accept identical reruns, refuse changed snapshots."""
-
-    def encode(value: dict) -> bytes:
-        return (
-            json.dumps(value, indent=2, sort_keys=True, allow_nan=False) + "\n"
-        ).encode("utf-8")
-
-    manifest_bytes = encode(manifest)
-    report = {**report, "manifest_sha256": hashlib.sha256(manifest_bytes).hexdigest()}
-    files = {"manifest.json": manifest_bytes, "report.json": encode(report)}
-    if output.exists() or output.is_symlink():
-        if (
-            output.is_symlink()
-            or not output.is_dir()
-            or {path.name for path in output.iterdir()} != set(files)
-            or any(
-                (output / name).is_symlink()
-                or not (output / name).is_file()
-                or (output / name).read_bytes() != content
-                for name, content in files.items()
-            )
-        ):
-            raise ValueError(
-                "Snapshot differs or is incomplete; choose a new --output directory"
-            )
-        return
-    output.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(dir=output.parent, prefix=".casting-") as work:
-        staging = Path(work) / "snapshot"
-        staging.mkdir()
-        for name, content in files.items():
-            (staging / name).write_bytes(content)
-        staging.rename(output)
 
 
 def main() -> None:

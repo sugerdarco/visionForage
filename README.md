@@ -220,8 +220,83 @@ within the image bounds. Two details matter when importing these annotations:
 
 XML is allowed only when declared in a dataset's metadata. Existing checksum,
 safe extraction, and rerun verification checks apply to annotations as well as
-images. This step does not convert labels to YOLO format or create new splits;
-those belong in the manifest and training adapters.
+images. The preparation step below creates our frozen splits; conversion to YOLO
+training files belongs in the next adapter.
+
+## Prepare NEU-DET detection splits
+
+```bash
+"$HOME/.local/share/visionforge/venv-cpu/bin/python" -m scripts.prepare_neu
+```
+
+On the VM, run from `/var/tmp/visionforge-t25089/source`:
+
+```bash
+/var/tmp/visionforge-t25089/venv-cu126/bin/python -m scripts.prepare_neu \
+  --data-dir /usershome/t25089/visionforge/data
+```
+
+This verifies the pinned archive and extracted files, decodes every image, and
+writes `DATA_DIR/manifests/neu-det-v1/{manifest,report}.json`. It needs only the
+existing Python/Pillow environment, no GPU or sudo. Identical reruns are accepted;
+changed settings or contents require a new `--output` directory. Source images,
+XML files, and generated snapshots stay outside Git.
+
+The connection is **source JPEG + XML → shared detection manifest → future YOLO
+adapter**. Each manifest row contains a relative image key, fixed split, and all
+of that image's object labels. Class indices are stable: `crazing=0`, `inclusion=1`,
+`patches=2`, `pitted_surface=3`, `rolled-in_scale=4`, `scratches=5`. XML object names
+supply the labels; filename prefixes only help balance the split.
+
+With seed 42 and 15% validation / 15% test pixel groups, the verified result is:
+
+| Split | Images | Unique pixel groups | Boxes | Difficult boxes included |
+| --- | ---: | ---: | ---: | ---: |
+| Train | 1,259 | 1,259 | 2,909 | 51 |
+| Validation | 270 | 270 | 625 | 10 |
+| Test | 271 | 270 | 655 | 20 |
+
+All 1,800 images and 4,189 boxes are preserved, and each split contains all six
+object classes. Within each filename family, groups of identical RGB pixels are
+ranked by SHA-256 of seed and pixel hash. Rounded test and validation group counts
+are selected first; the rest train. This avoids dependence on filesystem ordering
+and requires no additional splitting library. It balances source families rather
+than every combination of object labels, so the report includes per-class image
+and box counts. `--seed`, `--val-fraction`, and `--test-fraction` are configurable;
+freeze them before training and never adjust them in response to test scores.
+
+Two audited details affect interpretation:
+
+- `patches_101.jpg` and `patches_105.jpg` have identical pixels but slightly different
+  boxes. Both are retained in the **same test split**. We preserve the original
+  annotations rather than arbitrarily choose one; they count as two evaluation
+  images, not two independent scenes. No exact pixel group crosses a split.
+- All 81 `difficult=1` objects and all truncated objects remain ordinary targets.
+  Removing their boxes would leave visible defects unlabelled. The report retains
+  the flags, but manifest schema 1 has no ignore flag. Consequently future metrics
+  using this snapshot will include difficult objects, unlike VOC evaluation that
+  ignores them; they must be described as results on our custom split.
+
+Coordinates are interpreted as one-based inclusive VOC pixels, consistent with
+[Detectron2's VOC loader](https://github.com/facebookresearch/detectron2/blob/main/detectron2/data/datasets/pascal_voc.py).
+For width `W` and height `H`, conversion is
+`[(xmin-1)/W, (ymin-1)/H, (xmax-xmin+1)/W, (ymax-ymin+1)/H]`.
+The manifest stores normalized **top-left x/y plus width/height**, not YOLO center
+coordinates. A full-image box becomes `[0, 0, 1, 1]`, and a one-pixel box remains
+positive-area. This convention is explicit because XML-to-YOLO converters differ
+on endpoint handling; the later adapter must not apply another pixel offset.
+
+The XML files report depth 1 although the decoded JPEGs are RGB; both observations
+are preserved without rejecting valid image/annotation pairs. Missing pairs,
+unknown classes, malformed boxes, dimension mismatches, and ambiguous required XML
+fields fail preparation. The report records source provenance, image/XML/pixel
+hashes, original coordinates and flags, duplicate groups, and the manifest hash.
+Local and VM preparation produced byte-identical manifests and reports.
+
+This is a reproducible project split, not an official benchmark partition. Exact
+pixel grouping cannot rule out related crops or acquisition sequences because
+parent/acquisition IDs are unavailable. YOLO training and detection metrics are
+still to be implemented.
 
 ## Dataset manifest
 
