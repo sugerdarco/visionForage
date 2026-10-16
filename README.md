@@ -470,8 +470,8 @@ Each run produces these local artifacts, all outside Git:
 
 Metrics and best weights are published with temporary files and renames. A caught
 error marks the run failed; a forcibly killed process may leave status `running`.
-The checkpoint can be loaded with `torch.load(..., weights_only=True)` and will
-feed evaluation/export next. It is an evaluation checkpoint, not a resumable
+The checkpoint can be loaded with `torch.load(..., weights_only=True)` and feeds
+the evaluator below, with export planned next. It is an evaluation checkpoint, not a resumable
 training snapshot: optimizer and RNG states are not saved yet.
 
 Verification used a separate manifest of **8 training and 4 validation casting
@@ -480,6 +480,72 @@ VM (two spawned workers remotely). This checks execution and artifact creation,
 not baseline quality. GPU mixed precision and a full-data baseline remain pending
 because the shared GPUs were occupied. The known augmented-relative leakage
 limitation still applies to the casting split.
+
+## Evaluate a saved checkpoint
+
+`vf_ml.evaluation.evaluate_checkpoint` loads the saved weights without downloading
+a pretrained model or running an optimizer. It checks the manifest's exact SHA-256,
+class order, model name, `timm` version, and complete transform settings before
+scoring images. Strict state-dictionary loading catches incompatible weights.
+Only the chosen `val` or `test` split is opened, using deterministic preprocessing
+and model evaluation mode. The original training snapshot must include that split.
+
+For a completed full baseline, the default is the held-out **test** split:
+
+```bash
+"$HOME/.local/share/visionforge/venv-cpu/bin/python" -m scripts.evaluate_classifier \
+  --checkpoint runs/casting-baseline-1/best.pt --data-dir data
+```
+
+The command reads `manifest.json` beside the checkpoint and writes `report.json`
+there. Override paths with `--manifest` or `--output`. On the VM use its Python
+environment and persistent data/run paths. CPU evaluation requires no sudo or
+GPU; `--device cuda` requires one explicitly selected, allocated GPU. Existing
+reports are never overwritten, and failed evaluations publish no partial report.
+
+For our small execution-check checkpoint, use its **validation** split explicitly:
+
+```bash
+"$HOME/.local/share/visionforge/venv-cpu/bin/python" -m scripts.evaluate_classifier \
+  --checkpoint runs/casting-loop-smoke-20261017/best.pt \
+  --split val --batch-size 4 \
+  --output runs/casting-loop-smoke-20261017/validation-report.json
+```
+
+That smoke run and subset manifest were generated locally and on the VM, not
+committed. Its report is labelled `val`; its four-image results are execution
+checks, not a full test benchmark. This step leaves the full casting test set
+untouched. Test metrics should be computed after model selection, not used to
+tune training settings.
+
+The report includes checkpoint/manifest hashes, selected epoch, original model
+metadata, runtime settings, and these metrics:
+
+- Accuracy, unsmoothed cross-entropy, per-class precision/recall/F1 and support,
+  and macro F1 across every manifest class. Zero-denominator precision/recall/F1
+  are reported as zero, with support counts for interpretation. Training history
+  uses null for absent-class recall; evaluation uses the documented zero convention.
+- A confusion matrix with true classes as rows and predictions as columns,
+  labelled in manifest class order.
+- ROC-AUC from probabilities. Binary AUC uses class index 1 (`defective` for
+  casting); multiclass AUC is the macro one-vs-rest average. A class without both
+  positives and negatives has null AUC, and a multiclass macro AUC is null if any
+  constituent class is undefined. Tied scores receive half credit.
+- Up to 16 mistakes ranked by predicted-class probability, then image key for
+  ties. Each includes its image key, true label, predicted label, and confidence,
+  ready for the later review UI. Confidence is an uncalibrated softmax score.
+
+Metrics use the already-pinned NumPy dependency. The formulas and averaging
+conventions follow the standard definitions documented for
+[precision/recall/F1](https://scikit-learn.org/stable/modules/generated/sklearn.metrics.precision_recall_fscore_support.html)
+and [ROC-AUC](https://scikit-learn.org/stable/modules/generated/sklearn.metrics.roc_auc_score.html).
+Avoiding an additional metrics package keeps this environment smaller; the
+tradeoff is maintaining our own focused tests. AUC is checked against independent
+positive/negative pair comparisons, including ties and missing classes.
+Evaluation keeps class probabilities in memory for exact AUC; this is modest for
+the current datasets but would need revisiting for very large evaluations.
+The model runs in float32; loss calculation uses float64 to reduce aggregation
+rounding. No ONNX latency or export-parity claims are included yet.
 
 ## Planned service connections
 

@@ -156,11 +156,16 @@ def _reject_constant(value: str) -> None:
 
 def load_manifest(path: str | Path) -> Manifest:
     """Load a UTF-8 JSON manifest without fetching images or importing ML libraries."""
-    with Path(path).open(encoding="utf-8") as stream:
-        value = json.load(
-            stream, object_pairs_hook=_unique_keys, parse_constant=_reject_constant
+    return parse_manifest_json(Path(path).read_text(encoding="utf-8"))
+
+
+def parse_manifest_json(contents: str) -> Manifest:
+    """Validate the same in-memory JSON text that a caller hashes for provenance."""
+    return parse_manifest(
+        json.loads(
+            contents, object_pairs_hook=_unique_keys, parse_constant=_reject_constant
         )
-    return parse_manifest(value)
+    )
 
 
 def main() -> None:
