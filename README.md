@@ -406,7 +406,80 @@ cache. Reuse that cache with `HF_HUB_OFFLINE=1` for offline runs. A failed downl
 stops construction; it never silently falls back to random weights. Explicit
 `--random-init` (or `pretrained=False` in Python) supports offline wiring tests and
 records that no pretrained weights were loaded. Model weights stay out of Git.
-The next step is the training loop; no casting accuracy has been measured yet.
+The training loop below uses this same model factory. A full casting baseline has
+not been measured yet.
+
+## Train the classifier
+
+`vf_ml.training.train_classifier` connects the frozen manifest, image loaders,
+shared transforms, and ResNet-18 to an optimizer. Training uses only `train` and
+`val`; it never opens test images. The initial defaults follow the build plan:
+20 epochs, batch size 64, AdamW at `3e-4`, one epoch of linear warmup followed by
+cosine decay per batch, label smoothing 0.1, and early stopping after five epochs
+without a lower validation loss. Weight decay is 0.01. All layers are fine-tuned.
+
+From the repository root on the VM, after selecting an available allocated GPU
+with `CUDA_VISIBLE_DEVICES`:
+
+```bash
+/var/tmp/visionforge-t25089/venv-cu126/bin/python -m scripts.train_classifier \
+  --data-dir /usershome/t25089/visionforge/data \
+  --manifest /usershome/t25089/visionforge/data/manifests/casting-v2/manifest.json \
+  --cache-dir /usershome/t25089/visionforge/models \
+  --output /usershome/t25089/visionforge/runs/casting-baseline-1 \
+  --device cuda --workers 2 --horizontal-flip --vertical-flip
+```
+
+Use `--device cpu` for local checks with the local Python environment and data
+paths. CPU execution defaults to two threads and no loader subprocesses. A full
+CPU run is supported but heavier than the small checks we run locally. No Docker
+or sudo is required on the VM. Use a new output directory for every run; existing
+directories are refused, including failed or interrupted runs. `--help` lists
+seed, learning-rate, batch-size, epoch, worker, and early-stopping options.
+
+The important choices are:
+
+- **Class imbalance:** sample with replacement using inverse training-class
+  frequencies. Each class has equal expected sampling probability, without also
+  weighting the loss. This repeats some images and omits others within an epoch;
+  class-weighted loss would instead preserve one visit per image. Validation
+  retains its original distribution and uses ordinary, unsmoothed cross-entropy.
+- **Precision:** CPU uses float32. CUDA training uses autocast with bfloat16 when
+  supported, otherwise float16 with gradient scaling. Validation stays float32
+  for checkpoint selection. Overflowed float16 updates are skipped and successful
+  updates are counted. An epoch with no successful updates fails. Non-finite loss
+  also stops the run.
+- **Reproducibility:** Python, NumPy, PyTorch, sampling, and data workers are seeded.
+  Deterministic PyTorch algorithms are enabled; unsupported deterministic
+  operations fail rather than silently changing behavior. Reproducibility assumes
+  the same software, hardware, and worker configuration, not identical results
+  across CPU/CUDA or different worker counts.
+- **Selection:** save a checkpoint only when validation loss improves. Training
+  metrics use augmented, resampled data and a smoothed loss, so their loss values
+  are not directly comparable with validation loss. Every epoch records accuracy
+  and recall for each class; recall is null if a split has no examples of that class.
+
+Each run produces these local artifacts, all outside Git:
+
+| File | Purpose |
+| --- | --- |
+| `manifest.json` | Exact snapshot used by this run |
+| `run.json` | Settings, seed, manifest SHA-256, model/transform metadata, precision, device, status, best epoch, stop reason |
+| `history.json` | Epoch train/validation loss, accuracy, per-class recall, learning rate, successful optimizer steps |
+| `best.pt` | CPU model state, class/transform metadata, training settings, manifest hash, selected epoch and validation loss |
+
+Metrics and best weights are published with temporary files and renames. A caught
+error marks the run failed; a forcibly killed process may leave status `running`.
+The checkpoint can be loaded with `torch.load(..., weights_only=True)` and will
+feed evaluation/export next. It is an evaluation checkpoint, not a resumable
+training snapshot: optimizer and RNG states are not saved yet.
+
+Verification used a separate manifest of **8 training and 4 validation casting
+images**, two epochs, and the actual pretrained model on CPU locally and on the
+VM (two spawned workers remotely). This checks execution and artifact creation,
+not baseline quality. GPU mixed precision and a full-data baseline remain pending
+because the shared GPUs were occupied. The known augmented-relative leakage
+limitation still applies to the casting split.
 
 ## Planned service connections
 

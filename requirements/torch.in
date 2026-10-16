@@ -6,3 +6,5 @@ torchvision==0.28.0
 pillow==12.3.0
 # Pretrained classification models and their input specifications.
 timm==1.0.30
+# Seed NumPy consistently in the training process and data workers.
+numpy==2.4.6
