@@ -84,7 +84,7 @@ class EvaluationTest(unittest.TestCase):
             self.assertFalse(pretrained)
             return Classifier(tiny_model(), transforms, {})
 
-        with patch("vf_ml.evaluation.create_classifier", side_effect=factory):
+        with patch("vf_ml.checkpoint.create_classifier", side_effect=factory):
             return evaluate_checkpoint(
                 self.path,
                 self.manifest,

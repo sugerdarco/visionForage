@@ -471,7 +471,7 @@ Each run produces these local artifacts, all outside Git:
 Metrics and best weights are published with temporary files and renames. A caught
 error marks the run failed; a forcibly killed process may leave status `running`.
 The checkpoint can be loaded with `torch.load(..., weights_only=True)` and feeds
-the evaluator below, with export planned next. It is an evaluation checkpoint, not a resumable
+the evaluator and ONNX exporter below. It is an evaluation checkpoint, not a resumable
 training snapshot: optimizer and RNG states are not saved yet.
 
 Verification used a separate manifest of **8 training and 4 validation casting
@@ -545,7 +545,92 @@ positive/negative pair comparisons, including ties and missing classes.
 Evaluation keeps class probabilities in memory for exact AUC; this is modest for
 the current datasets but would need revisiting for very large evaluations.
 The model runs in float32; loss calculation uses float64 to reduce aggregation
-rounding. No ONNX latency or export-parity claims are included yet.
+rounding. ONNX parity and CPU latency are recorded separately by the exporter below.
+
+## Export a classifier to ONNX
+
+The next connection is `best.pt` + frozen manifest → verified `model.onnx` bundle
+→ the later CPU inference service. Export and evaluation share the same checkpoint
+loader, so both enforce the manifest hash, class order, model version, transforms,
+and strict weight loading. Export runs on CPU locally or on the VM; it needs
+neither sudo nor an allocated GPU. Rerun `setup_training_env.sh` to install the
+pinned ONNX and ONNX Runtime packages.
+
+For a completed full baseline:
+
+```bash
+"$HOME/.local/share/visionforge/venv-cpu/bin/python" -m scripts.export_classifier \
+  --checkpoint runs/casting-baseline-1/best.pt --data-dir data
+```
+
+By default, this reads `manifest.json` beside the checkpoint and creates a new
+`onnx/` directory there. `--manifest` and `--output` override these paths. Existing
+outputs are refused. Files are staged until all checks pass; `verification.json`
+is published last and marks a complete bundle. A process killed during publication
+can leave an incomplete directory, which must not be served.
+
+| Artifact | Purpose |
+| --- | --- |
+| `model.onnx` | Float32 classifier, opset 17, dynamic batch dimension |
+| `metadata.json` | Model/checkpoint/manifest hashes, class map, preprocessing and input/output contract |
+| `verification.json` | Parity results, selected image keys, CPU latency and runtime details |
+
+The input is **already preprocessed** float32 RGB data with shape `[N, 3, 224, 224]`.
+Deterministic full-image resize, bicubic interpolation, and ImageNet normalization
+come from `vf_ml.transforms.classification_transform(training=False)` using the
+checkpoint settings. Preprocessing is **outside the graph**. Outputs are raw logits
+in manifest class order; apply softmax over classes for probabilities. Keeping the
+contract beside the graph prevents the inference service from guessing class order
+or normalization. A future PyTorch-free serving environment still needs an equivalent
+preprocessing implementation and its own parity check.
+
+The export gate checks the ONNX graph and exact opset, then compares raw logits
+against CPU PyTorch on the first **32 distinct test images in manifest order**.
+Every selected image is checked at batch size 1 and again in batches of up to 8.
+The maximum absolute difference must be at most `1e-3`, with no relative tolerance;
+invalid shapes, non-finite outputs, insufficient images, or disagreement fail export.
+This checks numerical conversion, not predictive accuracy or model quality.
+
+For the existing small execution-check checkpoint, explicitly use validation:
+
+```bash
+"$HOME/.local/share/visionforge/venv-cpu/bin/python" -m scripts.export_classifier \
+  --checkpoint runs/casting-loop-smoke-20261017/best.pt \
+  --split val --parity-samples 4
+```
+
+Smaller checks require at least two images to exercise dynamic batching. The report
+sets `meets_32_test_image_check` to false for this smoke run; it does not silently
+claim the full gate passed. No training or test images are opened in this example.
+Our full casting test set remains untouched.
+
+Latency uses `CPUExecutionProvider`, two intra-op threads by default, one inter-op
+thread, 10 warmups, then 200 timed single-image `session.run` calls. It repeats the
+first selected preprocessed image. Mean and p95 exclude decoding, resizing,
+normalization, session initialization, and HTTP overhead. Thread count, CPU model,
+platform, and library versions are saved to make the measurement interpretable.
+These are single-process measurements on shared machines, not service benchmarks.
+
+Execution checks on 2026-10-17 used each machine's own two-epoch smoke checkpoint:
+
+| Machine | Max absolute logit error | Mean / p95 CPU time |
+| --- | --- | --- |
+| Local Ryzen 5 5600H | `3.54e-7` | 16.64 / 17.01 ms |
+| VM EPYC 9124 | `4.17e-7` | 17.65 / 20.83 ms |
+
+Both used four validation images and batch sizes 1 and 4. Full-baseline accuracy
+and the real 32-test-image export gate remain pending. Synthetic tests separately
+exercise the 32-image gate, dynamic batching, invalid outputs, and cleanup after
+parity failure. Model binaries and generated reports remain outside Git.
+
+Why ONNX Runtime: the planned service can execute the portable graph on CPU without
+loading the training model factory or downloading pretrained weights. Its explicit
+[CPU execution provider and session API](https://onnxruntime.ai/docs/api/python/api_summary.html)
+fit our local Docker deployment and unprivileged VM. We currently select PyTorch's
+TorchScript exporter explicitly (`dynamo=False`) for direct opset-17 export and
+`dynamic_axes`. This path works with the pinned PyTorch version but is deprecated;
+upgrading to the newer exporter will require validating its opset conversion and
+shape behavior against the same gate. Export settings are recorded in the report.
 
 ## Planned service connections
 

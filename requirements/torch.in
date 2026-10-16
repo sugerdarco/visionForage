@@ -8,3 +8,6 @@ pillow==12.3.0
 timm==1.0.30
 # Seed NumPy consistently in the training process and data workers.
 numpy==2.4.6
+# Portable model export and CPU inference parity checks.
+onnx==1.23.2
+onnxruntime==1.31.0
