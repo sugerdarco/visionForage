@@ -13,6 +13,7 @@ class ClassificationTransforms:
     """Serializable settings; record these alongside the trained model."""
 
     image_size: int = 224
+    interpolation: str = "bilinear"
     crop_min_scale: float = 0.85
     horizontal_flip: bool = False
     vertical_flip: bool = False
@@ -25,6 +26,8 @@ class ClassificationTransforms:
     def __post_init__(self) -> None:
         if type(self.image_size) is not int or self.image_size <= 0:
             raise ValueError("image_size must be a positive integer")
+        if self.interpolation not in ("bilinear", "bicubic"):
+            raise ValueError("interpolation must be bilinear or bicubic")
         if not 0 < self.crop_min_scale <= 1:
             raise ValueError("crop_min_scale must be in (0, 1]")
         if (
@@ -56,6 +59,7 @@ def classification_transform(
     """Return float32 CHW tensors; evaluation and serving share the default path."""
     steps = [v2.Lambda(_rgb), v2.ToImage()]
     size = (config.image_size, config.image_size)
+    interpolation = InterpolationMode(config.interpolation)
     if training:
         steps.extend(
             [
@@ -63,7 +67,7 @@ def classification_transform(
                     size,
                     scale=(config.crop_min_scale, 1.0),
                     ratio=(0.95, 1.05),
-                    interpolation=InterpolationMode.BILINEAR,
+                    interpolation=interpolation,
                     antialias=True,
                 ),
                 v2.RandomHorizontalFlip(p=0.5 if config.horizontal_flip else 0.0),
@@ -76,9 +80,7 @@ def classification_transform(
         )
     else:
         # Keep the whole image: a center crop could discard defects near the rim.
-        steps.append(
-            v2.Resize(size, interpolation=InterpolationMode.BILINEAR, antialias=True)
-        )
+        steps.append(v2.Resize(size, interpolation=interpolation, antialias=True))
     steps.extend(
         [
             v2.ToDtype(torch.float32, scale=True),

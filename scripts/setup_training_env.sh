@@ -46,7 +46,8 @@ if [[ ! -e $venv_dir ]]; then
 fi
 "$venv_dir/bin/python" -I -c 'import sys; assert sys.version_info[:3] == (3, 11, 16)'
 "$uv_bin" pip sync --python "$venv_dir/bin/python" \
-    --index-url "https://download.pytorch.org/whl/$backend" "$requirements"
+    --index "https://download.pytorch.org/whl/$backend" \
+    --default-index https://pypi.org/simple "$requirements"
 "$uv_bin" pip install --python "$venv_dir/bin/python" \
     --no-build-isolation --no-deps --editable "$repo_dir"
 "$uv_bin" pip check --python "$venv_dir/bin/python"

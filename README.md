@@ -86,10 +86,15 @@ transitive dependencies, separately for each backend:
 
 ```bash
 uv pip compile requirements/torch.in --python python3.11 \
-  --index-url https://download.pytorch.org/whl/cu126 \
+  --index https://download.pytorch.org/whl/cu126 --default-index https://pypi.org/simple \
   --no-annotate --no-header -o requirements/torch-cu126.txt
 # Repeat with cpu in place of cu126 to update the CPU list.
 ```
+
+The PyTorch index has priority for its CPU/CUDA wheels; PyPI supplies `timm` and
+packages absent from that index. All resolved versions are pinned. When adding a
+dependency, use the existing resolved list as `--constraint` and write to a temporary
+output before replacing it, keeping unrelated packages unchanged.
 
 ## Casting dataset
 
@@ -329,7 +334,7 @@ mean `(0.485, 0.456, 0.406)`, and std `(0.229, 0.224, 0.225)`.
   Orientation-sensitive projects should keep them disabled. Crops can remove
   small defects and rotations introduce border pixels, so these settings need
   validation when we train the baseline.
-- **Validation/test:** fixed bilinear resize of the full image, with antialiasing
+- **Validation/test:** fixed resize of the full image, with antialiasing
   and no random augmentation. This preserves edge content that center cropping
   could remove. It preserves the shape of square casting images but stretches
   non-square inputs; this is an explicit task-specific choice.
@@ -337,10 +342,71 @@ mean `(0.485, 0.456, 0.406)`, and std `(0.229, 0.224, 0.225)`.
 `classification_transform(config)` exposes the same deterministic path for future
 inference. Store `dataclasses.asdict(config)` with model artifacts and reconstruct
 it with `ClassificationTransforms(**saved_config)` to reuse preprocessing.
-Normalization must match the selected pretrained model; the training step will
-check its model settings. No classifier or training loop is implemented yet.
+Normalization and interpolation must match the selected pretrained model; the
+model factory below checks these settings. Standalone transforms default to
+bilinear, while this ResNet-18 checkpoint requires bicubic resizing.
 The lightweight `vf_ml.manifest` module remains independent of PyTorch; API code
 should import that module, not the classification modules.
+
+## ResNet-18 classification baseline
+
+`vf_ml.models.create_classifier` connects the manifest and shared transforms to
+[`timm`'s pretrained ResNet-18](https://huggingface.co/timm/resnet18.a1_in1k).
+We pin `timm==1.0.30` and checkpoint revision
+`491b427b45c94c7fb0e78b5474cc919aff584bbf`, using `model.safetensors`.
+The backbone starts with ImageNet weights; its classifier is replaced with a new,
+untrained head whose outputs follow `manifest.class_names`. Casting therefore
+has 11,177,538 trainable parameters and two raw logits per image, ordered `ok`,
+`defective`. These are not calibrated probabilities or trained defect predictions.
+
+ResNet-18 is the plan's small first baseline: practical CPU checks locally and
+straightforward fine-tuning on one remote GPU. `timm` also exposes alternatives
+such as EfficientNet and ConvNeXt through a common interface, but this factory
+deliberately supports just the selected baseline until we have measured results.
+Using torchvision's model directly would avoid `timm`'s extra dependencies;
+following the plan's model library makes later comparisons easier.
+
+```python
+from vf_ml.models import create_classifier
+
+classifier = create_classifier(manifest, cache_dir="data/model-cache")
+dataset = ClassificationDataset(manifest, "data", "train", classifier.transforms)
+model = classifier.model  # CPU, training mode; move to the selected device in training
+# Save classifier.metadata with future checkpoints: weights, classes, transforms.
+```
+
+The factory derives 224×224 input size, ImageNet normalization, and bicubic
+interpolation from the model configuration. Passing an incompatible transform
+configuration raises an error before fetching weights. Custom augmentation is
+supported by passing matching settings, for example
+`ClassificationTransforms(interpolation="bicubic", horizontal_flip=True)`.
+We retain full-image evaluation resizing for edge defects instead of the source
+checkpoint's center crop (`crop_pct=0.95`); metadata records both configurations.
+This is a fine-tuning choice, not a reproduction of its ImageNet benchmark.
+
+Rerun the environment setup to install the updated pinned dependencies, then:
+
+```bash
+"$HOME/.local/share/visionforge/venv-cpu/bin/python" -m scripts.check_classifier \
+  --cache-dir data/model-cache
+# On the VM, from the source directory; this also defaults to CPU:
+/var/tmp/visionforge-t25089/venv-cu126/bin/python -m scripts.check_classifier \
+  --data-dir /usershome/t25089/visionforge/data \
+  --cache-dir /usershome/t25089/visionforge/models
+```
+
+The check uses four training images for a forward pass, finite loss and gradient
+checks, and one optimizer update. It does not save a trained checkpoint or report
+accuracy. Add `--device cuda` only after selecting one available GPU with
+`CUDA_VISIBLE_DEVICES`. This step was verified on CPU locally and inside the VM's
+CUDA environment; the shared VM GPUs were busy, so GPU model execution is pending.
+
+The first pretrained run downloads about 45 MB into the chosen user-writable
+cache. Reuse that cache with `HF_HUB_OFFLINE=1` for offline runs. A failed download
+stops construction; it never silently falls back to random weights. Explicit
+`--random-init` (or `pretrained=False` in Python) supports offline wiring tests and
+records that no pretrained weights were loaded. Model weights stay out of Git.
+The next step is the training loop; no casting accuracy has been measured yet.
 
 ## Planned service connections
 
