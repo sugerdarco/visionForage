@@ -295,8 +295,8 @@ Local and VM preparation produced byte-identical manifests and reports.
 
 This is a reproducible project split, not an official benchmark partition. Exact
 pixel grouping cannot rule out related crops or acquisition sequences because
-parent/acquisition IDs are unavailable. YOLO training and detection metrics are
-still to be implemented.
+parent/acquisition IDs are unavailable. Detection training is available below;
+held-out detection evaluation remains to be implemented.
 
 ## Prepare YOLO training files
 
@@ -367,9 +367,8 @@ new destination when moving between machines; the report and generated labels
 are independent of that root path.
 
 The real layouts were generated and audited locally and on the VM. Their manifests,
-reports, images, and labels match; only the YAML root path differs. This validates
-the adapter's output. Installing a pinned Ultralytics version, checking its actual
-loader, and implementing the YOLOv8s training wrapper are the next steps.
+reports, images, and labels match; only the YAML root path differs. The pinned Ultralytics loader is now checked by the training wrapper below,
+including its removal of repeated label rows.
 
 ## Dataset manifest
 
@@ -779,6 +778,115 @@ TorchScript exporter explicitly (`dynamo=False`) for direct opset-17 export and
 `dynamic_axes`. This path works with the pinned PyTorch version but is deprecated;
 upgrading to the newer exporter will require validating its opset conversion and
 shape behavior against the same gate. Export settings are recorded in the report.
+
+## Train the detection baseline
+
+`vf_ml.detection_training.train_detector` connects a frozen detection manifest to
+our YOLO adapter, the pinned Ultralytics trainer, validation history, and a saved
+YOLOv8s checkpoint. It always prepares a fresh train/validation layout inside the
+run; test images are not opened. Rerun `scripts/setup_training_env.sh` to install
+the updated pinned requirements on each machine.
+
+For a full baseline on one available, allocated remote GPU:
+
+```bash
+cd /var/tmp/visionforge-t25089/source
+CUDA_VISIBLE_DEVICES=4 OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 \
+  /var/tmp/visionforge-t25089/venv-cu126/bin/python -m scripts.train_detector \
+  --manifest /usershome/t25089/visionforge/data/manifests/neu-det-v1/manifest.json \
+  --data-dir /usershome/t25089/visionforge/data \
+  --cache-dir /usershome/t25089/visionforge/models/yolo \
+  --output /usershome/t25089/visionforge/runs/neu-det-baseline-1 \
+  --device cuda --workers 2
+```
+
+GPU 4 is only an example; check current usage and allocation before starting.
+The wrapper requires exactly one visible GPU and preserves that selection through
+Ultralytics. It does not implement GPU scheduling or reservation. CPU is the CLI
+default, so local development never silently selects a GPU.
+
+Defaults are YOLOv8s pretrained on COCO, 640-pixel input, batch 16, 100 epochs, and
+early-stopping patience 20. Seed 42 and deterministic mode are recorded. The pinned
+Ultralytics optimizer, learning-rate schedule, and other augmentation defaults are
+used; `fit/args.yaml` saves the resolved settings. Horizontal and vertical flips
+are disabled unless explicitly enabled with `--horizontal-flip` / `--vertical-flip`.
+CUDA uses FP16 AMP after the library's AMP check; CPU training uses float32. The run
+records whether AMP was actually enabled. Batch size is explicit; automatic OOM
+batch reduction and resume support are not implemented by this wrapper yet.
+
+Why this version: **Ultralytics 8.3.221** supports YOLOv8 and avoids the newer
+platform client dependency. We pin its behavior and all transitive dependencies,
+then verify compatibility with our existing PyTorch 2.13 / Python 3.11 environments.
+OpenCV imports and the actual image/label loader were checked on the unprivileged
+VM. No system packages or sudo were needed. This is a tested version choice,
+not a claim that it is the latest release.
+
+The official `v8.3.0` release assets `yolov8s.pt` and, for CUDA's built-in AMP
+check only, `yolo11n.pt` are cached with pinned byte sizes and SHA-256 checks.
+Those hashes were measured from the upstream files on 2026-10-19. Modified cached
+weights fail before deserialization. There is no silent fallback to random
+initialization. `--random-init` is available explicitly for offline execution tests.
+Ultralytics configuration is directed to the run directory before its first import;
+use the CLI in a fresh process for each run. Cloud integrations and synchronization
+are disabled, along with automatic package installation and online update checks.
+The library may still fetch a font into its configuration directory when missing.
+
+The loader audit checks that Ultralytics retained every prepared image and each
+unique float32 label row. Repeated rows are the only permitted removal; other
+missing or changed labels fail the run. On our full NEU-DET training layout, the
+loader removes **one duplicate box row**: 2,909 manifest boxes become **2,908 effective
+training boxes** across 1,259 images. Validation retains all 625 boxes across 270
+images. The original manifest and label files are preserved, and per-run loader
+counts are saved. This duplicate annotation is separate from the duplicate image
+pair grouped into the test split during dataset preparation.
+
+| Artifact | Purpose |
+| --- | --- |
+| `source-manifest.json` | Exact supplied snapshot, including held-out rows |
+| `manifest.json` | Actual training snapshot; a recorded subset only in smoke mode |
+| `dataset/` | Fresh copied images, YOLO labels, class map and provenance report |
+| `run.json` | Status, configs, manifest/weight hashes, loader audit, precision, selected epoch and validation metrics |
+| `history.json` | Per-epoch losses, validation metrics, fitness, learning rates, successful and skipped optimizer steps |
+| `fit/args.yaml`, `fit/results.csv` | Ultralytics' resolved settings and epoch log |
+| `best.pt`, `fit/weights/` | Selected checkpoint and upstream training artifacts |
+
+Best weights and early stopping use **validation mAP@0.5:0.95**, which is fitness
+in this pinned version. Tied best scores select the later epoch, matching the
+trainer. The saved best checkpoint is validated once more at completion, and that
+result is labelled validation in `run.json`. These are Ultralytics detection
+checkpoints, not the classification checkpoint format; the classifier evaluator
+and exporter cannot consume them. Detection test evaluation and ONNX export remain
+separate upcoming steps.
+
+For a quick local check:
+
+```bash
+OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 \
+  "$HOME/.local/share/visionforge/venv-cpu/bin/python" -m scripts.train_detector \
+  --output runs/neu-det-cpu-smoke-20261019 --fast-dev-run
+```
+
+`--fast-dev-run` selects at most two train and one validation images per class,
+sets one epoch, image size 64, batch 2, and zero loader workers. CUDA smoke mode
+also starts GradScaler at 128 instead of the normal 65,536 so its few batches can
+exercise updates without spending the whole run reducing an overflowing scale.
+The actual initial scale is recorded; full training keeps the library default.
+Both the requested
+and effective settings are recorded, and `smoke_run` is true. For NEU-DET this is
+12 train / 6 validation images. On 2026-10-19, the actual pretrained model completed
+this check locally and on the VM CPU (`neu-det-cpu-smoke-20261019`), plus VM GPU 4
+(`neu-det-gpu-smoke-20261019-v2`) with AMP enabled and its check passed. All saved a
+best checkpoint and finite history. Their validation mAP is zero; these tiny,
+low-resolution checks establish execution, not detector quality. The 100-epoch,
+640-pixel baseline and held-out test metrics remain pending.
+
+Existing run paths are refused. Caught failures mark `run.json` failed and keep
+artifacts for diagnosis; a forcibly killed process may leave status `running`.
+Non-finite training loss or metrics, or a run with zero successful optimizer
+updates, fails the wrapper. Successful and overflow-skipped update counts are
+recorded per epoch and per run. The initial GPU smoke run exposed this case: its
+shared convolution weights did not change with the normal starting scale. The
+second smoke run verified successful updates and changed checkpoint weights. No generated datasets, weights, or run files are committed.
 
 ## Planned service connections
 

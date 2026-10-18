@@ -11,3 +11,5 @@ numpy==2.4.6
 # Portable model export and CPU inference parity checks.
 onnx==1.23.2
 onnxruntime==1.31.0
+# YOLOv8 detection training and validation; pin behavior for reproducible runs.
+ultralytics==8.3.221
