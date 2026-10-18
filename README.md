@@ -5,7 +5,7 @@ upload images, label defects, train a model, and deploy it for inference.
 
 The first milestone is reproducible classification and detection baselines.
 The application and deployment services will follow once the ML pipeline works.
-No model results have been measured yet.
+Full-dataset baseline results are still pending; small execution checks are documented below.
 
 ## Development setup
 
@@ -297,6 +297,79 @@ This is a reproducible project split, not an official benchmark partition. Exact
 pixel grouping cannot rule out related crops or acquisition sequences because
 parent/acquisition IDs are unavailable. YOLO training and detection metrics are
 still to be implemented.
+
+## Prepare YOLO training files
+
+```bash
+"$HOME/.local/share/visionforge/venv-cpu/bin/python" -m scripts.prepare_yolo \
+  --manifest data/manifests/neu-det-v1/manifest.json \
+  --data-dir data --output data/yolo/neu-det-v1-train
+```
+
+On the VM, run from `/var/tmp/visionforge-t25089/source` with its Python environment:
+
+```bash
+/var/tmp/visionforge-t25089/venv-cu126/bin/python -m scripts.prepare_yolo \
+  --manifest /usershome/t25089/visionforge/data/manifests/neu-det-v1/manifest.json \
+  --data-dir /usershome/t25089/visionforge/data \
+  --output /usershome/t25089/visionforge/data/yolo/neu-det-v1-train
+```
+
+`vf_ml.yolo.prepare_yolo_dataset` connects our shared manifest to the
+[Ultralytics YOLO dataset format](https://docs.ultralytics.com/datasets/detect/).
+It writes the following layout using the existing Python/Pillow environment,
+without importing PyTorch or Ultralytics or needing GPU/sudo access:
+
+```text
+neu-det-v1-train/
+  dataset.yaml
+  manifest.json
+  report.json
+  images/train/…jpg
+  images/val/…jpg
+  labels/train/…txt
+  labels/val/…txt
+```
+
+Only train and validation images are opened by default. Our NEU-DET snapshot
+produces **1,259 train images / 2,909 boxes** and **270 validation images / 625 boxes**.
+The 271 test images are omitted from the layout and YAML. For later held-out
+evaluation, prepare a separate output with `--include-test`; this adds the test
+split without changing its membership. Training and validation must be nonempty,
+and every declared class must have a training box.
+
+Each label line contains `class_index x_center y_center width height`. Conversion
+from our normalized top-left boxes is only `[x+w/2, y+h/2, w, h]`; no further VOC
+pixel offset is applied. Class order, all manifest boxes, and split membership are
+preserved. Background images receive explicit empty label files. Label values use
+17 significant digits to avoid unnecessary rounding of small boxes.
+
+Images are copied byte-for-byte rather than linked. This uses extra disk space,
+but later source changes cannot alter the prepared copies, and training caches or
+image repairs cannot change the original dataset. Filenames use the SHA-256 of the
+full image key, so equal basenames from different folders remain separate. The
+report maps each generated image/label file back to its original key and records
+both file hashes, dimensions, counts, and the exact manifest hash. The original
+manifest bytes are also included for provenance, including rows for omitted splits.
+
+Preparation validates JPEG/PNG decoding, RGB or grayscale mode, dimensions of at
+least 10×10, and that resolved source files stay inside the data root. Images with
+non-default EXIF orientation are rejected because rotating pixels alone could
+misalign their boxes. No resizing or augmentation happens here; those belong to
+the training loader.
+
+The command reserves a new output directory and stages the dataset before
+publishing the completed tree. Existing directories are refused, including empty
+ones. Handled failures remove the reservation and staging files; a killed process
+may leave an incomplete reservation, which must not be used. `dataset.yaml` has an
+absolute root for predictable resolution by Ultralytics. Rebuild the layout at its
+new destination when moving between machines; the report and generated labels
+are independent of that root path.
+
+The real layouts were generated and audited locally and on the VM. Their manifests,
+reports, images, and labels match; only the YAML root path differs. This validates
+the adapter's output. Installing a pinned Ultralytics version, checking its actual
+loader, and implementing the YOLOv8s training wrapper are the next steps.
 
 ## Dataset manifest
 
