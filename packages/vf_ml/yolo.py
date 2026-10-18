@@ -20,15 +20,22 @@ def prepare_yolo_dataset(
     output: str | Path,
     *,
     include_test: bool = False,
+    evaluation_split: str | None = None,
 ) -> dict:
-    """Copy selected images and labels into a new, independently usable directory."""
+    """Copy images and labels; evaluation_split prepares only that split for scoring."""
     if type(include_test) is not bool:
         raise ValueError("include_test must be a boolean")
+    if evaluation_split not in (None, "val", "test") or (
+        evaluation_split is not None and include_test
+    ):
+        raise ValueError("Choose evaluation_split val/test or include_test, not both")
     contents = Path(manifest_path).read_bytes()
     manifest = parse_manifest_json(contents.decode("utf-8"))
     if manifest.task_type != "detection":
         raise ValueError("YOLO preparation requires a detection manifest")
     splits = ("train", "val", "test") if include_test else ("train", "val")
+    if evaluation_split is not None:
+        splits = (evaluation_split,)
     for split in splits:
         if not manifest.samples_for(split):
             raise ValueError(f"Manifest has no samples for {split}")
@@ -37,7 +44,9 @@ def prepare_yolo_dataset(
         for sample in manifest.samples_for("train")
         for label in sample.labels
     }
-    if training_classes != set(range(len(manifest.class_names))):
+    if evaluation_split is None and training_classes != set(
+        range(len(manifest.class_names))
+    ):
         raise ValueError("Every manifest class must have a training box")
     data_root = Path(data_root).resolve(strict=True)
     if not data_root.is_dir():
@@ -130,6 +139,14 @@ def prepare_yolo_dataset(
             # Absolute path avoids dependence on Ultralytics' global datasets directory.
             config = [f"path: {json.dumps(str(output.resolve()), ensure_ascii=True)}"]
             config.extend(f"{split}: images/{split}" for split in splits)
+            if evaluation_split is not None:
+                # Upstream requires train and val keys even for test-only validation.
+                # These aliases exist only in the evaluator's temporary dataset.
+                config.extend(
+                    f"{split}: images/{evaluation_split}"
+                    for split in ("train", "val")
+                    if split not in splits
+                )
             config.append(
                 f"names: {json.dumps(list(manifest.class_names), ensure_ascii=True)}"
             )
@@ -142,6 +159,7 @@ def prepare_yolo_dataset(
                 "manifest_sha256": hashlib.sha256(contents).hexdigest(),
                 "class_map": dict(manifest.class_map),
                 "included_splits": list(splits),
+                "evaluation_only": evaluation_split is not None,
                 "image_policy": "Copy original bytes; no resizing, augmentation or EXIF rotation",
                 "box_conversion": "Normalized top-left xywh to center xywh: [x+w/2, y+h/2, w, h]",
                 "counts": {

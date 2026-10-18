@@ -855,8 +855,8 @@ in this pinned version. Tied best scores select the later epoch, matching the
 trainer. The saved best checkpoint is validated once more at completion, and that
 result is labelled validation in `run.json`. These are Ultralytics detection
 checkpoints, not the classification checkpoint format; the classifier evaluator
-and exporter cannot consume them. Detection test evaluation and ONNX export remain
-separate upcoming steps.
+and exporter cannot consume them. The detector evaluator below handles
+validation/test scoring. Detection ONNX export remains a separate upcoming step.
 
 For a quick local check:
 
@@ -887,6 +887,85 @@ updates, fails the wrapper. Successful and overflow-skipped update counts are
 recorded per epoch and per run. The initial GPU smoke run exposed this case: its
 shared convolution weights did not change with the normal starting scale. The
 second smoke run verified successful updates and changed checkpoint weights. No generated datasets, weights, or run files are committed.
+
+## Evaluate a saved detector
+
+The detection path is now **frozen manifest → YOLO training → saved best checkpoint
+→ evaluation report**. Evaluation requires the completed run's `best.pt`,
+`manifest.json`, and `run.json`. It verifies the checkpoint hash, exact manifest
+bytes, class order, selected epoch, and pinned Ultralytics version before scoring.
+Use checkpoints produced by our own trusted training runs: Ultralytics checkpoints
+contain pickled Python objects, and matching hashes establish consistency, not
+trust in an arbitrary downloaded run.
+
+For a completed full training run:
+
+```bash
+OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 \
+  "$HOME/.local/share/visionforge/venv-cpu/bin/python" -m scripts.evaluate_detector \
+  --checkpoint runs/neu-det-baseline/best.pt \
+  --output runs/neu-det-baseline/test-report.json
+```
+
+The default split is `test`; `--split val` explicitly requests validation. Optional
+`--manifest` and `--run` locate metadata stored elsewhere. `--data-dir` points to
+the root containing manifest image keys. Existing reports are refused, and a
+report is published atomically only after successful evaluation. A temporary
+YOLO layout contains just the requested split, then is removed. Ultralytics needs
+`train` and `val` YAML keys even for test evaluation, so that temporary config
+aliases those required keys to the selected images; no other split is read.
+The loader audit rejects silently changed image/label sets and records any
+identical float32 box rows removed by the library.
+
+The report separates two different questions:
+
+| Measurement | How it is calculated |
+| --- | --- |
+| mAP@0.5 and mAP@0.5:0.95 | Upstream 101-point interpolated AP, confidence floor 0.001, ten matching IoUs from 0.50 through 0.95 |
+| Per-class AP | Same calculation for each class with ground-truth boxes; absent classes are `null` and excluded from mAP |
+| Precision and recall | Confidence **≥ 0.25**, matching IoU **≥ 0.5**, per class and pooled micro average |
+| TP / FP / FN and support | Explicit counts, including false positives on background images; zero-denominator precision/recall is 0 |
+
+All predictions use class-aware NMS with IoU 0.7 and at most 300 detections per
+image. Fixed-threshold predictions are matched again after confidence filtering;
+a discarded box cannot consume a retained prediction's ground-truth match.
+Ultralytics' console precision/recall use its best-F1 operating point, so **read
+the JSON report for precision/recall at 0.25**. We reuse the pinned validator's AP
+and matching implementation rather than maintain a second AP implementation;
+hand-built box tests check the threshold handling around it. The exact upstream
+implementations are [detection validation](https://github.com/ultralytics/ultralytics/blob/v8.3.221/ultralytics/models/yolo/detect/val.py)
+and [metrics](https://github.com/ultralytics/ultralytics/blob/v8.3.221/ultralytics/utils/metrics.py).
+
+Evaluation uses float32, no augmentation, and a fixed square letterbox at the
+training run's recorded image size, with RGB pixels divided by 255. This gives
+predictable input geometry for the upcoming ONNX path. Training's internal
+validation uses rectangular batches and extra stride-aligned padding, so its
+metrics can differ from this separate evaluation, especially at smoke size 64.
+Reports record the preprocessing, size, thresholds, versions, artifact hashes,
+split, loader counts, and whether the model came from a smoke run.
+
+The CLI defaults to CPU and two threads: scoring a saved model is small enough
+to check locally without reserving a VM GPU. `--device cuda` also requires exactly
+one allocated GPU selected through `CUDA_VISIBLE_DEVICES`, as in training. Run
+each CLI invocation in a fresh process so library settings are initialized for
+that evaluation. No additional packages, Docker, or sudo are required.
+
+For the existing local smoke checkpoint:
+
+```bash
+OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 \
+  "$HOME/.local/share/visionforge/venv-cpu/bin/python" -m scripts.evaluate_detector \
+  --checkpoint runs/neu-det-cpu-smoke-20261019/best.pt \
+  --split val --batch-size 2
+```
+
+On 2026-10-19 this scored all **6 validation images / 15 boxes** locally. The VM
+also evaluated its `neu-det-gpu-smoke-20261019-v2` checkpoint on CPU with the same
+counts. A separate synthetic fixture exercises the default test split, background
+images, absent classes, and duplicate-label auditing. These are execution checks;
+the smoke snapshots contain no test images, and the full NEU-DET test split has
+not been scored. Full baseline training, held-out quality results, and detection
+ONNX export are still pending.
 
 ## Planned service connections
 
