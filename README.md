@@ -856,7 +856,7 @@ trainer. The saved best checkpoint is validated once more at completion, and tha
 result is labelled validation in `run.json`. These are Ultralytics detection
 checkpoints, not the classification checkpoint format; the classifier evaluator
 and exporter cannot consume them. The detector evaluator below handles
-validation/test scoring. Detection ONNX export remains a separate upcoming step.
+validation/test scoring, and the detector exporter below verifies ONNX output.
 
 For a quick local check:
 
@@ -938,7 +938,7 @@ and [metrics](https://github.com/ultralytics/ultralytics/blob/v8.3.221/ultralyti
 
 Evaluation uses float32, no augmentation, and a fixed square letterbox at the
 training run's recorded image size, with RGB pixels divided by 255. This gives
-predictable input geometry for the upcoming ONNX path. Training's internal
+predictable input geometry shared with the ONNX export check. Training's internal
 validation uses rectangular batches and extra stride-aligned padding, so its
 metrics can differ from this separate evaluation, especially at smoke size 64.
 Reports record the preprocessing, size, thresholds, versions, artifact hashes,
@@ -964,8 +964,105 @@ also evaluated its `neu-det-gpu-smoke-20261019-v2` checkpoint on CPU with the sa
 counts. A separate synthetic fixture exercises the default test split, background
 images, absent classes, and duplicate-label auditing. These are execution checks;
 the smoke snapshots contain no test images, and the full NEU-DET test split has
-not been scored. Full baseline training, held-out quality results, and detection
-ONNX export are still pending.
+not been scored. Full baseline training and held-out quality results are still
+pending; detection ONNX export is available below.
+
+## Export a detector to ONNX
+
+A saved YOLOv8s checkpoint now follows the same artifact path as the classifier:
+**verified checkpoint → ONNX graph → CPU parity check → export bundle**. The
+exporter reuses the evaluator's checkpoint/manifest checks and its exact pinned
+image loader. It runs on CPU locally or on the VM without sudo, Docker, new
+packages, or a GPU allocation.
+
+For a completed full detection baseline:
+
+```bash
+OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 \
+  "$HOME/.local/share/visionforge/venv-cpu/bin/python" -m scripts.export_detector \
+  --checkpoint runs/neu-det-baseline/best.pt \
+  --output runs/neu-det-baseline/onnx
+```
+
+By default this requires **32 test image keys** from the run's exact frozen
+manifest. Each image is compared at batch size 1 and in batches of up to 8.
+Every decoded box coordinate and class probability must agree with the original
+unfused float32 PyTorch checkpoint within **absolute error 0.001**, with no relative
+tolerance. Box errors are measured in padded input pixels. Non-finite outputs,
+wrong tensor shapes, changed provenance, or parity failure prevent publication.
+Images are selected in manifest order, and their keys and byte hashes are recorded.
+
+| Artifact | Contents |
+| --- | --- |
+| `model.onnx` | Opset 17, float32 graph with dynamic batch and fixed spatial dimensions |
+| `metadata.json` | Class map, tensor contract, preprocessing/postprocessing specification, checkpoint/manifest/run/model hashes |
+| `verification.json` | Parity errors, tested image keys and hashes, loader audit, CPU timing, runtime versions, and smoke flag |
+
+An existing output directory or symlink is refused. Files are staged until all
+checks pass; `verification.json` is published last to mark the completed bundle.
+Export artifacts remain ignored by Git. Optional `--manifest` and `--run` locate
+metadata elsewhere; use a fresh CLI process for each export, as with evaluation.
+
+The graph takes `images` shaped **[batch, 3, size, size]**. Size comes from the
+training run: normally 640, or 64 for the existing smoke checkpoints. Preprocessing
+stays outside the graph and follows the evaluator exactly: OpenCV decoding,
+aspect-preserving linear resize with ceiling-rounded dimensions, centered padding
+of 114, RGB channel order, CHW layout, then float32 pixels divided by 255. Tests
+compare this documented recipe byte-for-byte against actual validator input,
+including non-square images and odd padding. This is the contract the future
+inference service must share.
+
+Output `predictions` has shape **[batch, 4 + classes, anchors]**. For our six-class
+640-pixel detector that is `[batch, 10, 8400]`; at smoke size 64 it is
+`[batch, 10, 84]`. Channels 0–3 contain center-x, center-y, width, and height in
+padded input pixels. Remaining channels are sigmoid class probabilities in
+manifest order. There is no separate objectness channel and no softmax.
+
+Confidence filtering and class-aware non-maximum suppression (NMS) stay outside
+the graph. The metadata specifies confidence 0.25, NMS IoU 0.7, multiple classes
+per candidate, and a maximum of 300 detections. A serving implementation must
+then remove padding, undo the actual x/y resize ratios, and clip boxes to the
+original image. These are unfiltered network outputs, not a finished prediction
+API response. Keeping NMS outside allows thresholds to change without rebuilding
+the graph; the tradeoff is that serving must implement and test that final step.
+Raw-output parity does not guarantee identical decisions for boxes exactly at a
+confidence or NMS boundary.
+
+We use the pinned TorchScript exporter explicitly to preserve opset 17 and allow
+only batch size to vary. The export copy uses convolution/batch-normalization
+fusion and the upstream ONNX head configuration; parity against the untouched
+checkpoint also checks those transformations. The legacy exporter leaves one
+fixed output dimension symbolic, so it is annotated using the verified head
+shape and checked again against actual runtime outputs at multiple batch sizes.
+The pinned upstream behavior is documented in its
+[exporter](https://github.com/ultralytics/ultralytics/blob/v8.3.221/ultralytics/engine/exporter.py)
+and [detection head](https://github.com/ultralytics/ultralytics/blob/v8.3.221/ultralytics/nn/modules/head.py).
+
+For the existing local smoke checkpoint:
+
+```bash
+OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 \
+  "$HOME/.local/share/visionforge/venv-cpu/bin/python" -m scripts.export_detector \
+  --checkpoint runs/neu-det-cpu-smoke-20261019/best.pt \
+  --split val --parity-samples 6
+```
+
+On 2026-10-19, exports from both saved smoke checkpoints passed on six validation
+images at batches 1 and 6:
+
+| Export host and training run | Maximum absolute error | CPU mean / p95 |
+| --- | --- | --- |
+| Local, `neu-det-cpu-smoke-20261019` | 0.000328064 | 4.87 / 5.59 ms |
+| VM, `neu-det-gpu-smoke-20261019-v2` | 0.000194550 | 3.25 / 3.20 ms |
+
+Timing uses two CPU threads, ten warmup calls and 200 measured batch-one calls.
+It measures only ONNX Runtime `session.run`; decoding, preprocessing, NMS and
+network overhead are excluded. Mean can exceed p95 when a few calls are slow.
+These are **64-pixel smoke timings**, not 640-pixel baseline or service latency.
+Both reports correctly set `meets_32_test_image_check` to false. A synthetic test
+uses a real YOLOv8s architecture to exercise the 32-image gate, batches 1/8,
+validation overrides, and cleanup after a deliberately incorrect runtime output.
+The full trained baseline still needs its own held-out parity check and timings.
 
 ## Planned service connections
 
