@@ -5,7 +5,10 @@ upload images, label defects, train a model, and deploy it for inference.
 
 The first milestone is reproducible classification and detection baselines.
 The application and deployment services will follow once the ML pipeline works.
-Full-dataset baseline results are still pending; small execution checks are documented below.
+The first full casting baseline is complete: **99.56% defective recall**,
+**99.72% test accuracy**, and **16.96 ms mean / 17.51 ms p95**
+model-only ONNX CPU latency. See [measured results and limitations](docs/RESULTS.md)
+and [notebook 01](notebooks/01_casting_baseline.ipynb). Full NEU-DET results remain pending.
 
 ## Development setup
 
@@ -553,8 +556,8 @@ cache. Reuse that cache with `HF_HUB_OFFLINE=1` for offline runs. A failed downl
 stops construction; it never silently falls back to random weights. Explicit
 `--random-init` (or `pretrained=False` in Python) supports offline wiring tests and
 records that no pretrained weights were loaded. Model weights stay out of Git.
-The training loop below uses this same model factory. A full casting baseline has
-not been measured yet.
+The training loop below uses this same model factory. The full casting baseline
+is now recorded in [docs/RESULTS.md](docs/RESULTS.md).
 
 ## Train the classifier
 
@@ -624,9 +627,9 @@ training snapshot: optimizer and RNG states are not saved yet.
 Verification used a separate manifest of **8 training and 4 validation casting
 images**, two epochs, and the actual pretrained model on CPU locally and on the
 VM (two spawned workers remotely). This checks execution and artifact creation,
-not baseline quality. GPU mixed precision and a full-data baseline remain pending
-because the shared GPUs were occupied. The known augmented-relative leakage
-limitation still applies to the casting split.
+not baseline quality. The later full-data GPU run, `casting-baseline-20261019`,
+completed with bfloat16 training and is recorded in [docs/RESULTS.md](docs/RESULTS.md).
+The known augmented-relative leakage limitation still applies to the casting split.
 
 ## Evaluate a saved checkpoint
 
@@ -661,9 +664,10 @@ For our small execution-check checkpoint, use its **validation** split explicitl
 
 That smoke run and subset manifest were generated locally and on the VM, not
 committed. Its report is labelled `val`; its four-image results are execution
-checks, not a full test benchmark. This step leaves the full casting test set
-untouched. Test metrics should be computed after model selection, not used to
-tune training settings.
+checks, not a full test benchmark. That smoke evaluation did not read test images.
+The later full baseline was evaluated on the held-out test split after checkpoint
+selection; its results are in [docs/RESULTS.md](docs/RESULTS.md). Test metrics must
+not be used to tune training settings.
 
 The report includes checkpoint/manifest hashes, selected epoch, original model
 metadata, runtime settings, and these metrics:
@@ -749,7 +753,8 @@ For the existing small execution-check checkpoint, explicitly use validation:
 Smaller checks require at least two images to exercise dynamic batching. The report
 sets `meets_32_test_image_check` to false for this smoke run; it does not silently
 claim the full gate passed. No training or test images are opened in this example.
-Our full casting test set remains untouched.
+The later full baseline has separately passed the 32-test-image export gate;
+see [docs/RESULTS.md](docs/RESULTS.md).
 
 Latency uses `CPUExecutionProvider`, two intra-op threads by default, one inter-op
 thread, 10 warmups, then 200 timed single-image `session.run` calls. It repeats the
@@ -765,10 +770,11 @@ Execution checks on 2026-10-17 used each machine's own two-epoch smoke checkpoin
 | Local Ryzen 5 5600H | `3.54e-7` | 16.64 / 17.01 ms |
 | VM EPYC 9124 | `4.17e-7` | 17.65 / 20.83 ms |
 
-Both used four validation images and batch sizes 1 and 4. Full-baseline accuracy
-and the real 32-test-image export gate remain pending. Synthetic tests separately
-exercise the 32-image gate, dynamic batching, invalid outputs, and cleanup after
-parity failure. Model binaries and generated reports remain outside Git.
+Both used four validation images and batch sizes 1 and 4. The full casting
+baseline now has held-out accuracy and a passing 32-test-image export check in
+[docs/RESULTS.md](docs/RESULTS.md). Synthetic tests separately exercise dynamic
+batching, invalid outputs, and cleanup after parity failure. Model binaries remain
+outside Git; a reviewed baseline report snapshot is committed under `docs/results/`.
 
 Why ONNX Runtime: the planned service can execute the portable graph on CPU without
 loading the training model factory or downloading pretrained weights. Its explicit
