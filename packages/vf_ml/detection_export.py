@@ -122,6 +122,7 @@ def export_detector(
             .cpu()
             .float()
             .eval()
+            .fuse(verbose=False)
         )
         from ultralytics.nn.modules import C2f, Detect
 
@@ -140,8 +141,8 @@ def export_detector(
         images, records, audit = parity_images(
             work, prepared, manifest, split, size, parity_samples, max(strides)
         )
-        # Preserve checkpoint Conv/BatchNorm operations. Folding their parameters
-        # introduces extra rounding, amplified by decoding boxes in input pixels.
+        # Use the ordinary fused inference model, as the evaluator's AutoBackend
+        # does. Fuse once before copying so PyTorch and ONNX use identical weights.
         export_model = deepcopy(model).eval()
         for parameter in export_model.parameters():
             parameter.requires_grad_(False)
@@ -168,7 +169,7 @@ def export_detector(
                 input_names=["images"],
                 output_names=["predictions"],
                 dynamic_axes={"images": {0: "batch"}, "predictions": {0: "batch"}},
-                do_constant_folding=False,
+                do_constant_folding=True,
             )
         graph = onnx.load(model_path)
         # The legacy exporter leaves the Concat channel dimension symbolic.
@@ -194,7 +195,9 @@ def export_detector(
         options.intra_op_num_threads = cpu_threads
         options.inter_op_num_threads = 1
         options.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
-        options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+        # Additional runtime rewrites change float32 convolution arithmetic enough
+        # to exceed the strict raw-pixel gate on the trained 640px detector.
+        options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_DISABLE_ALL
         session = ort.InferenceSession(
             str(model_path), sess_options=options, providers=["CPUExecutionProvider"]
         )
@@ -221,7 +224,7 @@ def export_detector(
             for batch_size in batch_sizes:
                 for start in range(0, parity_samples, batch_size):
                     batch = images[start : start + batch_size]
-                    # Reference the ordinary unfused checkpoint, not its export-only copy.
+                    # Reference ordinary inference, not the export-only Detect/C2f paths.
                     reference = model(batch)[0].numpy()
                     actual = session.run(["predictions"], {"images": batch.numpy()})[0]
                     errors.append(
@@ -251,6 +254,12 @@ def export_detector(
             "smoke_run": run["smoke_run"],
             "class_map": dict(manifest.class_map),
             "opset": OPSET,
+            "inference": {
+                "provider": "CPUExecutionProvider",
+                "graph_optimization_level": "ORT_DISABLE_ALL",
+                "precision": "float32",
+                "pytorch_reference": "Checkpoint with standard Ultralytics Conv/BatchNorm fusion, native CPU kernels",
+            },
             "input": {
                 "name": "images",
                 "dtype": "float32",
@@ -299,7 +308,7 @@ def export_detector(
                 "max_box_absolute_error": max(error["boxes"] for error in errors),
                 "max_score_absolute_error": max(error["scores"] for error in errors),
                 "scope": "All decoded boxes and class probabilities before confidence filtering or NMS",
-                "reference": "Original unfused float32 PyTorch checkpoint in evaluation mode, native CPU kernels (oneDNN disabled)",
+                "reference": "Float32 PyTorch checkpoint with standard Ultralytics Conv/BatchNorm fusion, ordinary inference forward, native CPU kernels (oneDNN disabled)",
                 "meets_32_test_image_check": split == "test" and parity_samples >= 32,
             },
             "latency": {
@@ -316,10 +325,11 @@ def export_detector(
                 "onnx_version": onnx.__version__,
                 "onnxruntime_version": ort.__version__,
                 "exporter": "torchscript",
-                "export_conv_batchnorm_fusion": False,
-                "export_constant_folding": False,
+                "export_conv_batchnorm_fusion": True,
+                "reference_conv_batchnorm_fusion": True,
+                "export_constant_folding": True,
                 "reference_mkldnn_enabled": False,
-                "onnxruntime_graph_optimization": "ORT_ENABLE_ALL",
+                "onnxruntime_graph_optimization": "ORT_DISABLE_ALL",
                 "provider": "CPUExecutionProvider",
                 "cpu_threads": cpu_threads,
                 "inter_op_threads": 1,

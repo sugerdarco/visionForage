@@ -170,6 +170,7 @@ assert small['parity']['batch_sizes'] == [1, 2]
 
 original = exporter.ort.InferenceSession
 def changed_session(*args, **kwargs):
+    assert kwargs['sess_options'].graph_optimization_level == exporter.ort.GraphOptimizationLevel.ORT_DISABLE_ALL
     session = original(*args, **kwargs)
     altered = Mock(wraps=session)
     def run(*a, **kw):
@@ -210,9 +211,16 @@ assert not list(root.glob('.detection-onnx-*'))
         self.assertEqual(len(report["parity"]["image_sha256"]), 32)
         self.assertLessEqual(report["parity"]["max_absolute_error"], 1e-3)
         self.assertEqual(report["latency"]["measured_runs"], 200)
-        self.assertFalse(report["runtime"]["export_conv_batchnorm_fusion"])
-        self.assertFalse(report["runtime"]["export_constant_folding"])
+        self.assertTrue(report["runtime"]["export_conv_batchnorm_fusion"])
+        self.assertTrue(report["runtime"]["reference_conv_batchnorm_fusion"])
+        self.assertTrue(report["runtime"]["export_constant_folding"])
         self.assertFalse(report["runtime"]["reference_mkldnn_enabled"])
+        self.assertEqual(
+            report["runtime"]["onnxruntime_graph_optimization"], "ORT_DISABLE_ALL"
+        )
+        self.assertEqual(
+            metadata["inference"]["graph_optimization_level"], "ORT_DISABLE_ALL"
+        )
         self.assertGreater(report["latency"]["p95_ms"], 0)
         self.assertEqual(metadata["input"]["shape"], ["batch", 3, 64, 64])
         self.assertEqual(metadata["output"]["shape"], ["batch", 6, 84])

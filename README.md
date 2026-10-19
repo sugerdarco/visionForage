@@ -1041,15 +1041,26 @@ Raw-output parity does not guarantee identical decisions for boxes exactly at a
 confidence or NMS boundary.
 
 We use the pinned TorchScript exporter explicitly to preserve opset 17 and allow
-only batch size to vary. The export copy preserves separate convolution and
-batch-normalization operations and disables exporter constant folding. The
-float32 PyTorch reference uses native CPU kernels with oneDNN disabled; this
-reduces backend rounding differences observed in a 640-pixel probe. The original
-checkpoint, raw input-pixel coordinates, all predictions, 32-image requirement,
-and absolute 0.001 tolerance are unchanged. ONNX Runtime still enables its normal
-graph optimizations. These choices are recorded in `verification.json`.
+only batch size to vary. The checkpoint is put into ordinary float32 inference
+mode and its Conv/BatchNorm layers are fused once, before copying it for export.
+The reference keeps the ordinary PyTorch forward path; only the export copy uses
+ONNX-specific Detect/C2f paths. This uses the same standard fusion as the
+[evaluator's AutoBackend](https://github.com/ultralytics/ultralytics/blob/v8.3.221/ultralytics/nn/autobackend.py).
+Native CPU kernels (oneDNN disabled) make the PyTorch batch comparison stable.
+
+ONNX Runtime must use `CPUExecutionProvider` and **`ORT_DISABLE_ALL`** for this
+verified inference configuration. Additional runtime graph optimizations exceeded
+the raw-pixel tolerance on the trained detector. These requirements are stored
+in `metadata.json` under `inference` and repeated in `verification.json`; a serving
+loader must apply them rather than accepting ONNX Runtime's default optimizations.
+Disabling these rewrites trades potential speed for numerical agreement. Exporter
+constant folding remains enabled. The checkpoint file, float32 inputs/outputs,
+raw input-pixel coordinates, all predictions, 32-image requirement and absolute
+0.001 tolerance are unchanged. The reference is now the standard **fused**
+PyTorch inference model, rather than the earlier unfused reference.
 [PyTorch's numerical-accuracy notes](https://docs.pytorch.org/docs/2.9/notes/numerical_accuracy.html)
-explain why mathematically equivalent kernels and batches can differ numerically.
+and [ONNX Runtime's optimization documentation](https://onnxruntime.ai/docs/performance/model-optimizations/graph-optimizations.html)
+explain why equivalent graphs can execute with different arithmetic.
 The legacy exporter leaves one fixed output dimension symbolic, so it is annotated
 using the verified head shape and checked again against actual runtime outputs at
 multiple batch sizes.
