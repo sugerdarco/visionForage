@@ -2,7 +2,6 @@
   "schema_version": 1,
   "run_id": "neu-det-baseline-20261019",
   "source_commit": "c25334daf2dd18d97550943f92bbfe501d61882b",
-  "evaluation_export_source_commit": "97149a668210fe0c94483039d5034f8c3d62d081",
   "dataset": {
     "source": {
       "annotation_format": "Pascal VOC XML",
@@ -2860,180 +2859,210 @@
     }
   },
   "onnx": {
-    "status": "failed",
-    "attempt": {
+    "status": "passed",
+    "metadata": {
       "schema_version": 1,
-      "status": "failed",
-      "published": false,
-      "exit_code": 1,
-      "source_commit": "97149a668210fe0c94483039d5034f8c3d62d081",
+      "task_type": "detection",
+      "model_name": "yolov8s",
+      "model_file": "model.onnx",
+      "model_sha256": "e223028b8c8814db9e5e50de27e85ec878f17202a54dc675bb81bb484ee83c8f",
       "checkpoint_sha256": "7b87b0bc3d886e3662824b364389c84e0125d2e44fc9e96a4aaf5e5d0c354b74",
       "manifest_sha256": "8bf7bfca0af99f0af4decdbdab53a423fcf32ac34822d7cf6d3963c059859615",
-      "requested_split": "test",
-      "requested_samples": 32,
-      "requested_batch_sizes": [
-        1,
-        8
-      ],
-      "absolute_tolerance": 0.001,
-      "relative_tolerance": 0.0,
-      "error": "Export failed: ONNX parity failed: max absolute error 0.001678466796875 > 0.001",
-      "first_failing_batch_max_absolute_error": 0.001678466796875,
-      "completed_32_test_image_check": false,
-      "latency": null,
-      "failure_scope": "The exporter stops at the first failing batch; this is not the maximum over all requested images.",
-      "runtime": {
-        "host": "remote VM",
-        "cpu_model": "AMD EPYC 9124 16-Core Processor",
-        "cpu_threads": 2,
+      "run_sha256": "7ecc47ca3a0f51ae9f5ef786ff1b0d61521e5fc25883f771c721bcbb94c177c8",
+      "checkpoint_epoch": 96,
+      "selection_split": "val",
+      "selection_metric": "validation mAP@0.5:0.95 (Ultralytics fitness)",
+      "smoke_run": false,
+      "class_map": {
+        "crazing": 0,
+        "inclusion": 1,
+        "patches": 2,
+        "pitted_surface": 3,
+        "rolled-in_scale": 4,
+        "scratches": 5
+      },
+      "opset": 17,
+      "inference": {
+        "provider": "CPUExecutionProvider",
+        "graph_optimization_level": "ORT_DISABLE_ALL",
         "precision": "float32",
-        "opset": 17,
+        "pytorch_reference": "Checkpoint with standard Ultralytics Conv/BatchNorm fusion, native CPU kernels"
+      },
+      "input": {
+        "name": "images",
+        "dtype": "float32",
+        "layout": "NCHW",
+        "shape": [
+          "batch",
+          3,
+          640,
+          640
+        ],
+        "preprocessing_in_graph": false,
+        "preprocessing": {
+          "implementation": "Ultralytics 8.3.221 DetectionValidator with rect=False",
+          "decode": "OpenCV BGR, convert to RGB before CHW",
+          "resize": "INTER_LINEAR; ratio=size/max(original_height,original_width); each resized dimension=min(ceil(original_dimension*ratio),size)",
+          "padding": "Center to square with value 114; left/top=round(total_padding/2-0.1), right/bottom=round(total_padding/2+0.1)",
+          "normalization": "float32 pixels divided by 255; no mean/std"
+        }
+      },
+      "output": {
+        "name": "predictions",
+        "dtype": "float32",
+        "shape": [
+          "batch",
+          10,
+          8400
+        ],
+        "boxes": "Channels 0:4 are center_x, center_y, width, height in padded input pixels",
+        "scores": "Channels 4: are sigmoid class probabilities in class-map order; no objectness channel or softmax",
+        "nms_in_graph": false,
+        "postprocessing": "Convert xywh to xyxy, filter scores, apply class-aware NMS in input coordinates, remove padding, divide x/y by actual resize ratios, clip to original image bounds",
+        "default_confidence": 0.25,
+        "default_nms_iou": 0.7,
+        "max_detections_per_image": 300,
+        "multi_label": true
+      }
+    },
+    "verification": {
+      "schema_version": 1,
+      "model_sha256": "e223028b8c8814db9e5e50de27e85ec878f17202a54dc675bb81bb484ee83c8f",
+      "smoke_run": false,
+      "loader_audit": {
+        "images": 271,
+        "manifest_boxes": 655,
+        "effective_boxes": 653,
+        "duplicate_rows_removed": 2
+      },
+      "parity": {
+        "passed": true,
+        "split": "test",
+        "samples": 32,
+        "image_keys": [
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_104.jpg",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_106.jpg",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_109.jpg",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_116.jpg",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_120.jpg",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_123.jpg",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_13.jpg",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_140.jpg",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_145.jpg",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_157.jpg",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_160.jpg",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_165.jpg",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_169.jpg",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_172.jpg",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_177.jpg",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_188.jpg",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_20.jpg",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_207.jpg",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_217.jpg",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_222.jpg",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_226.jpg",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_227.jpg",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_237.jpg",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_24.jpg",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_241.jpg",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_242.jpg",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_243.jpg",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_263.jpg",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_269.jpg",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_27.jpg",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_277.jpg",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_280.jpg"
+        ],
+        "image_sha256": {
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_104.jpg": "1b60cd12649d9a695a693be42c29b1b3837fe81788b923a37546f6505b4e221c",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_106.jpg": "1dc8951b8ea88596d00487e98772e8c2a5403940e94772ae5ee7363e4718a287",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_109.jpg": "798ada3a99c5c1d694902dbe04a9b74f834f9b21f1c7477eeefede49256dce06",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_116.jpg": "941e6bd4be28f83dc5892c69fbca178867d385d6088d0310c942ebdefb9f8b59",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_120.jpg": "9e88d467b31b526f0cf3732264d72af070365a87edfcbcccbe0f9a3845a30974",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_123.jpg": "bb2020c554decdfbc6a8499e2d9179781e2aa3427f31d48c626a3da367abb15e",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_13.jpg": "428a5d25cf2fa0487cf9737d637ad160008c0b3ca84e7dab89c0f93dae83c7a2",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_140.jpg": "e93030abf5c2b941529e6b105767aa0a6edd92b18c96792a2ef07865c39d7253",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_145.jpg": "c91b2e3ee3b1a86d955389405bb97e16922d410df54f3fbddb5cf5f4a8bdb16b",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_157.jpg": "c50b115700ed6408936e788e261d4243480380e3793a2fd0d25c2a91419a2b23",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_160.jpg": "7481e41a90a324d1a6cbde8ea0d1a3996d4a295be5d876f6a14dbe0f3fa6e02b",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_165.jpg": "840c450bc6c1a69bdb48e59abc822db5f23e2cd8997b7b0695d49d6117a95b1b",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_169.jpg": "84a1bd8144ad8b9b280400ec22d2ae1ca09012108b24a90a9599235f1a01f313",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_172.jpg": "3374f8f27498b03a8a815a28d4e63a5a745549f6baa38a6ad93c489ee664f492",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_177.jpg": "7cfad80ed8df45124dce13a24dce66949b774750fe13ab9f3a29ae7ecf32d4ef",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_188.jpg": "45670819395294b3d2f7ddf0fa702b4a5573f447aecc9b699926e27fb24f66b1",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_20.jpg": "c81fdfa4f7e457c21bbe7dca824ffcdb602dadf60aa59f6aeaf4ddc71054386c",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_207.jpg": "27f77016ee364560e53e2c3083bd9f47d9d205340714efbe57462bd8365c252b",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_217.jpg": "dd0e2f8a2c6901cc540c53aa7194af40fa2e8ed38a0825608e1b56c846fcf01e",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_222.jpg": "90521f05d4c3c2fc3f15475e8d00a7af52111db2f8884cc8befd9aeb14b661ed",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_226.jpg": "cf59e7a9b758c9af450503774af88a65ce22546907fe59a73ca5533e96c70a75",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_227.jpg": "67499dd21306030c383b07abf5c7a7d597313d24d8420e16a46d797fba6d1195",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_237.jpg": "18f8b0bcf9692da645238c25dcd17a8f29d9119ec6f84079f9b97bd93d9557cf",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_24.jpg": "26341b60aa1ce81a0f2c000942a9c71deb7eac2de9b58f3bd21b6dd54d1ad4d7",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_241.jpg": "1d65ef27eaa9bf27608d954dfe57b40e401fc1aed435884400f35e8000bbf98d",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_242.jpg": "6471b0b8300f5b0c809ff9802c4a1c7f747c0738929a952b30ced6d0e65f61f3",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_243.jpg": "94e839f26e6b51d8dee5d8a8c3ffc0d4f820015f18e7bcb5fef9582a2df2b295",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_263.jpg": "1e232e717c44df26f4700547935f55a177ff78ff3187179cf94321471fc93298",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_269.jpg": "4cac3f7a6ef724ab817f6e4c0fe8f80117880efb5a80fdbae565a5edc70b32d4",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_27.jpg": "10626e2b51d15ee8d30e107d3f92b4d02017ef40188f029ebb7c64d77bace16b",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_277.jpg": "41dee519ca65f342c25b91f0e8a6fa82c0bf90fb36be8ed47360ab57f72b7d82",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_280.jpg": "f67462e22e7e025d07a09854282b519ad30a5bd802d79ae3c4fb17c609fdb570"
+        },
+        "batch_sizes": [
+          1,
+          8
+        ],
+        "absolute_tolerance": 0.002,
+        "box_absolute_tolerance": 0.002,
+        "score_absolute_tolerance": 0.001,
+        "relative_tolerance": 0.0,
+        "max_absolute_error": 0.001007080078125,
+        "max_box_absolute_error": 0.001007080078125,
+        "max_score_absolute_error": 2.5480985641479492e-06,
+        "scope": "All decoded boxes and class probabilities before confidence filtering or NMS",
+        "reference": "Float32 PyTorch checkpoint with standard Ultralytics Conv/BatchNorm fusion, ordinary inference forward, native CPU kernels (oneDNN disabled)",
+        "meets_32_test_image_check": true
+      },
+      "latency": {
+        "scope": "ONNX Runtime session.run only; decode, preprocessing and NMS excluded",
+        "batch_size": 1,
+        "warmup_runs": 10,
+        "measured_runs": 200,
+        "mean_ms": 187.49361307360232,
+        "p95_ms": 196.53732504229993
+      },
+      "runtime": {
         "torch_version": "2.13.0+cu126",
         "ultralytics_version": "8.3.221",
         "onnx_version": "1.23.2",
         "onnxruntime_version": "1.31.0",
-        "export_conv_batchnorm_fusion": false,
-        "export_constant_folding": false,
+        "exporter": "torchscript",
+        "export_conv_batchnorm_fusion": true,
+        "reference_conv_batchnorm_fusion": true,
+        "export_constant_folding": true,
         "reference_mkldnn_enabled": false,
-        "onnxruntime_graph_optimization": "ORT_ENABLE_ALL"
+        "onnxruntime_graph_optimization": "ORT_DISABLE_ALL",
+        "provider": "CPUExecutionProvider",
+        "cpu_threads": 2,
+        "inter_op_threads": 1,
+        "platform": "Linux-5.15.0-191-generic-x86_64-with-glibc2.35",
+        "cpu_model": "AMD EPYC 9124 16-Core Processor"
+      }
+    },
+    "validation_verification": {
+      "schema_version": 1,
+      "model_sha256": "e223028b8c8814db9e5e50de27e85ec878f17202a54dc675bb81bb484ee83c8f",
+      "smoke_run": false,
+      "loader_audit": {
+        "images": 270,
+        "manifest_boxes": 625,
+        "effective_boxes": 625,
+        "duplicate_rows_removed": 0
       },
-      "diagnostics": {
-        "synthetic_seed": 42,
-        "synthetic_images": 8,
-        "validation_images": 32,
-        "synthetic": [
-          {
-            "scope": "trained checkpoint, seed-42 synthetic input only",
-            "optimization": "ORT_ENABLE_ALL",
-            "batch": 1,
-            "box_error": 0.0003814697265625,
-            "score_error": 1.6391277313232422e-07,
-            "outside_tolerance": 0
-          },
-          {
-            "scope": "trained checkpoint, seed-42 synthetic input only",
-            "optimization": "ORT_ENABLE_ALL",
-            "batch": 8,
-            "box_error": 0.000518798828125,
-            "score_error": 1.6763806343078613e-07,
-            "outside_tolerance": 0
-          },
-          {
-            "scope": "trained checkpoint, seed-42 synthetic input only",
-            "optimization": "ORT_ENABLE_EXTENDED",
-            "batch": 1,
-            "box_error": 0.000335693359375,
-            "score_error": 1.3185469072141132e-07,
-            "outside_tolerance": 0
-          },
-          {
-            "scope": "trained checkpoint, seed-42 synthetic input only",
-            "optimization": "ORT_ENABLE_EXTENDED",
-            "batch": 8,
-            "box_error": 0.0007171630859375,
-            "score_error": 1.3783574104309082e-07,
-            "outside_tolerance": 0
-          },
-          {
-            "scope": "trained checkpoint, seed-42 synthetic input only",
-            "optimization": "ORT_ENABLE_BASIC",
-            "batch": 1,
-            "box_error": 0.0003509521484375,
-            "score_error": 1.757772594146445e-07,
-            "outside_tolerance": 0
-          },
-          {
-            "scope": "trained checkpoint, seed-42 synthetic input only",
-            "optimization": "ORT_ENABLE_BASIC",
-            "batch": 8,
-            "box_error": 0.0007171630859375,
-            "score_error": 1.757772594146445e-07,
-            "outside_tolerance": 0
-          },
-          {
-            "scope": "trained checkpoint, seed-42 synthetic input only",
-            "optimization": "ORT_DISABLE_ALL",
-            "batch": 1,
-            "box_error": 0.000335693359375,
-            "score_error": 1.2915417357817205e-07,
-            "outside_tolerance": 0
-          },
-          {
-            "scope": "trained checkpoint, seed-42 synthetic input only",
-            "optimization": "ORT_DISABLE_ALL",
-            "batch": 8,
-            "box_error": 0.000335693359375,
-            "score_error": 2.0116567611694336e-07,
-            "outside_tolerance": 0
-          }
-        ],
-        "validation": [
-          {
-            "scope": "trained checkpoint, first 32 validation images",
-            "optimization": "ORT_ENABLE_ALL",
-            "batch": 1,
-            "box_error": 0.00286865234375,
-            "score_error": 6.16908073425293e-06,
-            "outside_tolerance": 222
-          },
-          {
-            "scope": "trained checkpoint, first 32 validation images",
-            "optimization": "ORT_ENABLE_ALL",
-            "batch": 8,
-            "box_error": 0.00286865234375,
-            "score_error": 6.16908073425293e-06,
-            "outside_tolerance": 222
-          },
-          {
-            "scope": "trained checkpoint, first 32 validation images",
-            "optimization": "ORT_ENABLE_EXTENDED",
-            "batch": 1,
-            "box_error": 0.002777099609375,
-            "score_error": 1.2040138244628906e-05,
-            "outside_tolerance": 207
-          },
-          {
-            "scope": "trained checkpoint, first 32 validation images",
-            "optimization": "ORT_ENABLE_EXTENDED",
-            "batch": 8,
-            "box_error": 0.002777099609375,
-            "score_error": 1.2040138244628906e-05,
-            "outside_tolerance": 207
-          },
-          {
-            "scope": "trained checkpoint, first 32 validation images",
-            "optimization": "ORT_ENABLE_BASIC",
-            "batch": 1,
-            "box_error": 0.002777099609375,
-            "score_error": 1.2040138244628906e-05,
-            "outside_tolerance": 207
-          },
-          {
-            "scope": "trained checkpoint, first 32 validation images",
-            "optimization": "ORT_ENABLE_BASIC",
-            "batch": 8,
-            "box_error": 0.002777099609375,
-            "score_error": 1.2040138244628906e-05,
-            "outside_tolerance": 207
-          },
-          {
-            "scope": "trained checkpoint, first 32 validation images",
-            "optimization": "ORT_DISABLE_ALL",
-            "batch": 1,
-            "box_error": 0.001800537109375,
-            "score_error": 2.473592758178711e-06,
-            "outside_tolerance": 5
-          },
-          {
-            "scope": "trained checkpoint, first 32 validation images",
-            "optimization": "ORT_DISABLE_ALL",
-            "batch": 8,
-            "box_error": 0.001800537109375,
-            "score_error": 2.473592758178711e-06,
-            "outside_tolerance": 5
-          }
-        ],
-        "validation_image_keys": [
+      "parity": {
+        "passed": true,
+        "split": "val",
+        "samples": 32,
+        "image_keys": [
           "raw/neu-det-v1/NEU-DET/IMAGES/crazing_114.jpg",
           "raw/neu-det-v1/NEU-DET/IMAGES/crazing_128.jpg",
           "raw/neu-det-v1/NEU-DET/IMAGES/crazing_131.jpg",
@@ -3066,8 +3095,393 @@
           "raw/neu-det-v1/NEU-DET/IMAGES/crazing_276.jpg",
           "raw/neu-det-v1/NEU-DET/IMAGES/crazing_278.jpg",
           "raw/neu-det-v1/NEU-DET/IMAGES/crazing_282.jpg"
+        ],
+        "image_sha256": {
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_114.jpg": "bfbf237d5d9cdd29527db2d4c2a7d825d3cbcf8a188977f812917b6b49519781",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_128.jpg": "6c9f506429318b9eda3235d4fdbb150fbf81c5cca42fd2213ca9a88a01377402",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_131.jpg": "d5d3daf656fa4d7c7a66cdccbe90b7b1eed94725446f6b228f02620deabeb64a",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_135.jpg": "6173b9bd597a0b8cf594b5e257a1c4912568f786966dae96e59dd5ebc1821ff5",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_136.jpg": "e21ec9cc6273ca4729a58a991368b5b66c6cd7b05b945bb1d0725fb48987a2e7",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_139.jpg": "b73e2cec62b9478c3ad32b6081d7a87c7dd5da7d8b5a44b2d0f29cd7ceba2ed7",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_14.jpg": "97c5efc6fcc1e2ff1279718c15554e2a3681b95c8f70ad6603f6264f6ea5e660",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_141.jpg": "57fc38c627bf90303f8a6463748416de11212a5d0b5914e68403da487755269c",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_153.jpg": "9568a72ddc882108a6defe0f6bb2600e22e278f2e684716b9c563dc810b33bac",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_155.jpg": "af9f0321f3acedf982a652f5f2e9310a783d3ec890c80e4228a66646e9afced4",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_156.jpg": "ce6c5cb055c2710fc0169e3ac58c54985b176f0da300b60c00e08ae8f3a9dd1b",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_168.jpg": "caacd794d43649ca3788087be60e16b024c611c66832d4d0aff2364428919b33",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_17.jpg": "c811854bc098b5524d3de6c31c21ccbb2dfde665309317a8d92cc59137263e0e",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_175.jpg": "6be1274fe64d462318296583b601eb7cbe4dc9d2cd81e407f8f380ca53eed7fe",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_176.jpg": "20e375fe90ecf726ed1d482c0db90f7aaf7b166f595a65b7a592cc38a401216c",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_178.jpg": "6a867904651264bedc9470410bb5e1d7125e0bbe15f70ac5b9f50434be9b90d5",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_180.jpg": "7b42c2cfe2071328ae4f5c33fedc31ff5aa5a81600ea3c165a8eb223548886ae",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_183.jpg": "235d4d003fcd9444e789cd5e0e1ba547049c7ce1b1e309fa6f8c839697683157",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_187.jpg": "bf302c6472f4fe52779500515f03789f10533b6a285047bb1248981ca2bf05bc",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_189.jpg": "8064bef326ab2f1e88f8bdca2b1486f267fe505e5faeed78d6963dae21129ea0",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_204.jpg": "b2f9e0689212c067d3dd36923e753371114697911d9e5533dd51f2a775ddef0d",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_205.jpg": "893f11bee876f47786e05acecf0acd3007e78908329bdf3eaae7203b13d3dc7b",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_212.jpg": "a7ce3566d8246d17290452bd22d8e4c8c526d2703204d0491a15fe1d31628fe7",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_218.jpg": "0391916cc44a7dbfebd764dd85759974cd636da8208b3a3a47df2d73538ee6fb",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_220.jpg": "ee6d32c95f87d6489f177f035f4464b5c78e919b72800c33ec029d2292988c89",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_228.jpg": "acaf388126e0a346c5f5a76920cefcab08ef6121a8edffb1ac4da56fd0a95188",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_231.jpg": "89526e779b3ef99fe1a115262f58d9ad2e7f0012e62a8f86b59ab7c3f770e2d4",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_267.jpg": "e2e8e6f90ca2b9d2135613801ef954565e81881938917b241b5c7ffa89ea02b2",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_274.jpg": "7666107c448d2234f43fcf14541e7bf958d41583e7ca38449f59547e030a5f6c",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_276.jpg": "8440b30fbde2cb5f3d254648340dbc2e4094df6ace47089511ec685f953a2bf8",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_278.jpg": "8aa0adc94ab37ba8bc08f828343a938e0a8e24ea459e0eb5ed93a65ab0fbabdc",
+          "raw/neu-det-v1/NEU-DET/IMAGES/crazing_282.jpg": "541ea674fef6a8964b6485fd3f14ee79c2a2cd24ab9d03f80e6e669d29e8378d"
+        },
+        "batch_sizes": [
+          1,
+          8
+        ],
+        "absolute_tolerance": 0.001,
+        "relative_tolerance": 0.0,
+        "max_absolute_error": 0.00091552734375,
+        "max_box_absolute_error": 0.00091552734375,
+        "max_score_absolute_error": 4.023313522338867e-06,
+        "scope": "All decoded boxes and class probabilities before confidence filtering or NMS",
+        "reference": "Float32 PyTorch checkpoint with standard Ultralytics Conv/BatchNorm fusion, ordinary inference forward, native CPU kernels (oneDNN disabled)",
+        "meets_32_test_image_check": false
+      },
+      "latency": {
+        "scope": "ONNX Runtime session.run only; decode, preprocessing and NMS excluded",
+        "batch_size": 1,
+        "warmup_runs": 10,
+        "measured_runs": 200,
+        "mean_ms": 221.99571912642568,
+        "p95_ms": 236.8038258515298
+      },
+      "runtime": {
+        "torch_version": "2.13.0+cu126",
+        "ultralytics_version": "8.3.221",
+        "onnx_version": "1.23.2",
+        "onnxruntime_version": "1.31.0",
+        "exporter": "torchscript",
+        "export_conv_batchnorm_fusion": true,
+        "reference_conv_batchnorm_fusion": true,
+        "export_constant_folding": true,
+        "reference_mkldnn_enabled": false,
+        "onnxruntime_graph_optimization": "ORT_DISABLE_ALL",
+        "provider": "CPUExecutionProvider",
+        "cpu_threads": 2,
+        "inter_op_threads": 1,
+        "platform": "Linux-5.15.0-191-generic-x86_64-with-glibc2.35",
+        "cpu_model": "AMD EPYC 9124 16-Core Processor"
+      }
+    },
+    "previous_attempts": [
+      {
+        "schema_version": 1,
+        "status": "failed",
+        "published": false,
+        "exit_code": 1,
+        "source_commit": "97149a668210fe0c94483039d5034f8c3d62d081",
+        "checkpoint_sha256": "7b87b0bc3d886e3662824b364389c84e0125d2e44fc9e96a4aaf5e5d0c354b74",
+        "manifest_sha256": "8bf7bfca0af99f0af4decdbdab53a423fcf32ac34822d7cf6d3963c059859615",
+        "requested_split": "test",
+        "requested_samples": 32,
+        "requested_batch_sizes": [
+          1,
+          8
+        ],
+        "absolute_tolerance": 0.001,
+        "relative_tolerance": 0.0,
+        "error": "Export failed: ONNX parity failed: max absolute error 0.001678466796875 > 0.001",
+        "first_failing_batch_max_absolute_error": 0.001678466796875,
+        "completed_32_test_image_check": false,
+        "latency": null,
+        "failure_scope": "The exporter stops at the first failing batch; this is not the maximum over all requested images.",
+        "runtime": {
+          "host": "remote VM",
+          "cpu_model": "AMD EPYC 9124 16-Core Processor",
+          "cpu_threads": 2,
+          "precision": "float32",
+          "opset": 17,
+          "torch_version": "2.13.0+cu126",
+          "ultralytics_version": "8.3.221",
+          "onnx_version": "1.23.2",
+          "onnxruntime_version": "1.31.0",
+          "export_conv_batchnorm_fusion": false,
+          "export_constant_folding": false,
+          "reference_mkldnn_enabled": false,
+          "onnxruntime_graph_optimization": "ORT_ENABLE_ALL"
+        },
+        "diagnostics": {
+          "synthetic_seed": 42,
+          "synthetic_images": 8,
+          "validation_images": 32,
+          "synthetic": [
+            {
+              "scope": "trained checkpoint, seed-42 synthetic input only",
+              "optimization": "ORT_ENABLE_ALL",
+              "batch": 1,
+              "box_error": 0.0003814697265625,
+              "score_error": 1.6391277313232422e-07,
+              "outside_tolerance": 0
+            },
+            {
+              "scope": "trained checkpoint, seed-42 synthetic input only",
+              "optimization": "ORT_ENABLE_ALL",
+              "batch": 8,
+              "box_error": 0.000518798828125,
+              "score_error": 1.6763806343078613e-07,
+              "outside_tolerance": 0
+            },
+            {
+              "scope": "trained checkpoint, seed-42 synthetic input only",
+              "optimization": "ORT_ENABLE_EXTENDED",
+              "batch": 1,
+              "box_error": 0.000335693359375,
+              "score_error": 1.3185469072141132e-07,
+              "outside_tolerance": 0
+            },
+            {
+              "scope": "trained checkpoint, seed-42 synthetic input only",
+              "optimization": "ORT_ENABLE_EXTENDED",
+              "batch": 8,
+              "box_error": 0.0007171630859375,
+              "score_error": 1.3783574104309082e-07,
+              "outside_tolerance": 0
+            },
+            {
+              "scope": "trained checkpoint, seed-42 synthetic input only",
+              "optimization": "ORT_ENABLE_BASIC",
+              "batch": 1,
+              "box_error": 0.0003509521484375,
+              "score_error": 1.757772594146445e-07,
+              "outside_tolerance": 0
+            },
+            {
+              "scope": "trained checkpoint, seed-42 synthetic input only",
+              "optimization": "ORT_ENABLE_BASIC",
+              "batch": 8,
+              "box_error": 0.0007171630859375,
+              "score_error": 1.757772594146445e-07,
+              "outside_tolerance": 0
+            },
+            {
+              "scope": "trained checkpoint, seed-42 synthetic input only",
+              "optimization": "ORT_DISABLE_ALL",
+              "batch": 1,
+              "box_error": 0.000335693359375,
+              "score_error": 1.2915417357817205e-07,
+              "outside_tolerance": 0
+            },
+            {
+              "scope": "trained checkpoint, seed-42 synthetic input only",
+              "optimization": "ORT_DISABLE_ALL",
+              "batch": 8,
+              "box_error": 0.000335693359375,
+              "score_error": 2.0116567611694336e-07,
+              "outside_tolerance": 0
+            }
+          ],
+          "validation": [
+            {
+              "scope": "trained checkpoint, first 32 validation images",
+              "optimization": "ORT_ENABLE_ALL",
+              "batch": 1,
+              "box_error": 0.00286865234375,
+              "score_error": 6.16908073425293e-06,
+              "outside_tolerance": 222
+            },
+            {
+              "scope": "trained checkpoint, first 32 validation images",
+              "optimization": "ORT_ENABLE_ALL",
+              "batch": 8,
+              "box_error": 0.00286865234375,
+              "score_error": 6.16908073425293e-06,
+              "outside_tolerance": 222
+            },
+            {
+              "scope": "trained checkpoint, first 32 validation images",
+              "optimization": "ORT_ENABLE_EXTENDED",
+              "batch": 1,
+              "box_error": 0.002777099609375,
+              "score_error": 1.2040138244628906e-05,
+              "outside_tolerance": 207
+            },
+            {
+              "scope": "trained checkpoint, first 32 validation images",
+              "optimization": "ORT_ENABLE_EXTENDED",
+              "batch": 8,
+              "box_error": 0.002777099609375,
+              "score_error": 1.2040138244628906e-05,
+              "outside_tolerance": 207
+            },
+            {
+              "scope": "trained checkpoint, first 32 validation images",
+              "optimization": "ORT_ENABLE_BASIC",
+              "batch": 1,
+              "box_error": 0.002777099609375,
+              "score_error": 1.2040138244628906e-05,
+              "outside_tolerance": 207
+            },
+            {
+              "scope": "trained checkpoint, first 32 validation images",
+              "optimization": "ORT_ENABLE_BASIC",
+              "batch": 8,
+              "box_error": 0.002777099609375,
+              "score_error": 1.2040138244628906e-05,
+              "outside_tolerance": 207
+            },
+            {
+              "scope": "trained checkpoint, first 32 validation images",
+              "optimization": "ORT_DISABLE_ALL",
+              "batch": 1,
+              "box_error": 0.001800537109375,
+              "score_error": 2.473592758178711e-06,
+              "outside_tolerance": 5
+            },
+            {
+              "scope": "trained checkpoint, first 32 validation images",
+              "optimization": "ORT_DISABLE_ALL",
+              "batch": 8,
+              "box_error": 0.001800537109375,
+              "score_error": 2.473592758178711e-06,
+              "outside_tolerance": 5
+            }
+          ],
+          "validation_image_keys": [
+            "raw/neu-det-v1/NEU-DET/IMAGES/crazing_114.jpg",
+            "raw/neu-det-v1/NEU-DET/IMAGES/crazing_128.jpg",
+            "raw/neu-det-v1/NEU-DET/IMAGES/crazing_131.jpg",
+            "raw/neu-det-v1/NEU-DET/IMAGES/crazing_135.jpg",
+            "raw/neu-det-v1/NEU-DET/IMAGES/crazing_136.jpg",
+            "raw/neu-det-v1/NEU-DET/IMAGES/crazing_139.jpg",
+            "raw/neu-det-v1/NEU-DET/IMAGES/crazing_14.jpg",
+            "raw/neu-det-v1/NEU-DET/IMAGES/crazing_141.jpg",
+            "raw/neu-det-v1/NEU-DET/IMAGES/crazing_153.jpg",
+            "raw/neu-det-v1/NEU-DET/IMAGES/crazing_155.jpg",
+            "raw/neu-det-v1/NEU-DET/IMAGES/crazing_156.jpg",
+            "raw/neu-det-v1/NEU-DET/IMAGES/crazing_168.jpg",
+            "raw/neu-det-v1/NEU-DET/IMAGES/crazing_17.jpg",
+            "raw/neu-det-v1/NEU-DET/IMAGES/crazing_175.jpg",
+            "raw/neu-det-v1/NEU-DET/IMAGES/crazing_176.jpg",
+            "raw/neu-det-v1/NEU-DET/IMAGES/crazing_178.jpg",
+            "raw/neu-det-v1/NEU-DET/IMAGES/crazing_180.jpg",
+            "raw/neu-det-v1/NEU-DET/IMAGES/crazing_183.jpg",
+            "raw/neu-det-v1/NEU-DET/IMAGES/crazing_187.jpg",
+            "raw/neu-det-v1/NEU-DET/IMAGES/crazing_189.jpg",
+            "raw/neu-det-v1/NEU-DET/IMAGES/crazing_204.jpg",
+            "raw/neu-det-v1/NEU-DET/IMAGES/crazing_205.jpg",
+            "raw/neu-det-v1/NEU-DET/IMAGES/crazing_212.jpg",
+            "raw/neu-det-v1/NEU-DET/IMAGES/crazing_218.jpg",
+            "raw/neu-det-v1/NEU-DET/IMAGES/crazing_220.jpg",
+            "raw/neu-det-v1/NEU-DET/IMAGES/crazing_228.jpg",
+            "raw/neu-det-v1/NEU-DET/IMAGES/crazing_231.jpg",
+            "raw/neu-det-v1/NEU-DET/IMAGES/crazing_267.jpg",
+            "raw/neu-det-v1/NEU-DET/IMAGES/crazing_274.jpg",
+            "raw/neu-det-v1/NEU-DET/IMAGES/crazing_276.jpg",
+            "raw/neu-det-v1/NEU-DET/IMAGES/crazing_278.jpg",
+            "raw/neu-det-v1/NEU-DET/IMAGES/crazing_282.jpg"
+          ]
+        }
+      },
+      {
+        "schema_version": 1,
+        "status": "failed",
+        "published": false,
+        "exit_code": 1,
+        "checkpoint_sha256": "7b87b0bc3d886e3662824b364389c84e0125d2e44fc9e96a4aaf5e5d0c354b74",
+        "source_sha256": "3c1d50ba2a6886d1d518ea0ad5ce904652e820024cfcd043c848aa7625084264",
+        "source_file": "export-fused-attempt-source.py",
+        "requested_split": "test",
+        "requested_samples": 32,
+        "requested_batch_sizes": [
+          1,
+          8
+        ],
+        "absolute_tolerance": 0.001,
+        "relative_tolerance": 0.0,
+        "error": "Export failed: ONNX parity failed: max absolute error 0.001007080078125 > 0.001",
+        "first_failing_batch_max_absolute_error": 0.001007080078125,
+        "completed_32_test_image_check": false,
+        "latency": null,
+        "reference": "Standard Ultralytics fused float32 PyTorch inference model; native CPU kernels",
+        "runtime_optimization": "ORT_DISABLE_ALL",
+        "note": "Intermediate uncommitted candidate; source file retained and hashed. Validation 32-image check passed, test stopped at first failing batch.",
+        "complete_test_diagnostics": [
+          {
+            "scope": "fused PyTorch inference model vs fused ONNX, all 32 requested test images",
+            "optimization": "ORT_DISABLE_ALL",
+            "batch": 1,
+            "box_error": 0.001007080078125,
+            "score_error": 2.5480985641479492e-06,
+            "outside_tolerance": 1,
+            "total_values": 2688000,
+            "box_p99": 0.0001220703125,
+            "box_p9999": 0.000396728515625,
+            "max_location": [
+              18,
+              2,
+              8292
+            ]
+          },
+          {
+            "scope": "fused PyTorch inference model vs fused ONNX, all 32 requested test images",
+            "optimization": "ORT_DISABLE_ALL",
+            "batch": 8,
+            "box_error": 0.001007080078125,
+            "score_error": 2.5480985641479492e-06,
+            "outside_tolerance": 1,
+            "total_values": 2688000,
+            "box_p99": 0.0001220703125,
+            "box_p9999": 0.000396728515625,
+            "max_location": [
+              18,
+              2,
+              8292
+            ]
+          }
         ]
       }
+    ],
+    "postprocessing_diagnostic": {
+      "scope": "Additional diagnostic on 32 test images; not a replacement for raw-output parity",
+      "model_sha256": "e223028b8c8814db9e5e50de27e85ec878f17202a54dc675bb81bb484ee83c8f",
+      "raw_max_error": 0.001007080078125,
+      "raw_values_outside_0p001": 1,
+      "raw_values_total": 2688000,
+      "confidence": 0.25,
+      "nms_iou": 0.7,
+      "max_detections": 300,
+      "multi_label": true,
+      "same_counts": true,
+      "same_ordered_classes": true,
+      "total_reference_detections": 99,
+      "total_onnx_detections": 99,
+      "max_box_error_after_nms": 0.000244140625,
+      "max_score_error_after_nms": 1.996755599975586e-06
+    },
+    "provenance": {
+      "schema_version": 1,
+      "source_commit": "b21e4c593c05f843c111146fb96faff9688d23cb",
+      "source_sha256": {
+        "packages/vf_ml/detection_export.py": "574c275580cbaf4ce476bd968df04fc2100b631f395c1536d91333f9e30a6246",
+        "packages/vf_ml/detection_checkpoint.py": "cdc54e597b466fa95cab015616ae7242f3e654f18794e3d7aae92fa2a4129439",
+        "packages/vf_ml/detection_training.py": "20f4ac5ab76e9beba41c9c2f99bfe5666782a165a363887c2ff714a1ac92f3cd",
+        "packages/vf_ml/yolo.py": "1c3f8c054db18387a82a465004c2c795d1b95d5c08b1b16da8d6a339e291c562",
+        "scripts/export_detector.py": "54246a507edea9ddfe5c0c0088002d816c0d882ff552cf502adf9c693f933205"
+      },
+      "recorded_at_utc": "2026-10-19T17:19:43.079625+00:00",
+      "checkpoint_sha256": "7b87b0bc3d886e3662824b364389c84e0125d2e44fc9e96a4aaf5e5d0c354b74",
+      "validation_report_sha256": "5bd83ef1a812425730239644380b9f5576057a93552adeae2973c689127af2af",
+      "test_report_sha256": "6cacede4c69a4b52bf9ab5eafa55573891f57fddff3c641328dd9424844f4974",
+      "reference_change": "Standard Ultralytics fused PyTorch inference model, as used by the existing evaluator; ordinary forward, float32, native CPU kernels",
+      "runtime_change": "Disable additional ONNX Runtime graph optimizations; float32 throughout",
+      "unchanged": "Checkpoint file, class map, input preprocessing, raw pixel coordinates, all output predictions, relative tolerance 0, 32 test images and batches 1/8",
+      "plan_amendment": {
+        "approved_on": "2026-10-19",
+        "approved_by": "repository owner",
+        "original_box_absolute_tolerance": 0.001,
+        "approved_box_absolute_tolerance": 0.002,
+        "score_absolute_tolerance": 0.001,
+        "relative_tolerance": 0,
+        "reason": "One of 2,688,000 raw outputs per batch mode differed by 0.001007080078125 pixels with the fused inference reference. The owner explicitly approved 0.002 pixels and documenting the plan change.",
+        "old_gate_passed": false
+      },
+      "validation_export_source_commit": "f6ada5703180e5b58aba494538730f006f7db3c4"
     }
   },
   "artifact_sha256": {
@@ -3086,6 +3500,21 @@
     "synthetic-export-probe.py": "9e59eaba325d5ca2cc2e48d47268691bd59028de23ffceff1a1d58cb7ee4e3e2",
     "synthetic-export-probe.log": "c84af4129779e3d3f6366239ccbf03521b76e8e4633a9a5b44c4678613ecf8d3",
     "validation-export-probe.py": "b22666b0b31824b26acfaa7c31c4be6fdfe5029e33aefddf70725e9d9832e277",
-    "validation-export-probe.log": "b7365ce04dbe78a102a893a338742217427f14e131f51ae9aedc451b62e174ac"
-  }
+    "validation-export-probe.log": "b7365ce04dbe78a102a893a338742217427f14e131f51ae9aedc451b62e174ac",
+    "onnx/model.onnx": "e223028b8c8814db9e5e50de27e85ec878f17202a54dc675bb81bb484ee83c8f",
+    "onnx/metadata.json": "4db2231957aa570f8cdef5cf5db15b0ef3dc2c8e58e13569137fcf7ecd773376",
+    "onnx/verification.json": "6cacede4c69a4b52bf9ab5eafa55573891f57fddff3c641328dd9424844f4974",
+    "onnx-validation/model.onnx": "e223028b8c8814db9e5e50de27e85ec878f17202a54dc675bb81bb484ee83c8f",
+    "onnx-validation/metadata.json": "4db2231957aa570f8cdef5cf5db15b0ef3dc2c8e58e13569137fcf7ecd773376",
+    "onnx-validation/verification.json": "5bd83ef1a812425730239644380b9f5576057a93552adeae2973c689127af2af",
+    "export-provenance.json": "eaadc0eec209fa8e032756748050c5857e82a2ad3bf390ee0a7fe096b0fb9fce",
+    "export-fused-attempt.json": "b60a43a097f1adb27f99a80b3b466f037b0aad916eb332e3bbdb0a624fd7a54e",
+    "export-fused-attempt.log": "8ea94c39653f8b6f7b2267f02ba30708fc0645f29d4d677eb80e60363a8ed49c",
+    "export-fused-attempt-source.py": "3c1d50ba2a6886d1d518ea0ad5ce904652e820024cfcd043c848aa7625084264",
+    "fused-test-diagnostics.log": "cb6ddd624aabd8d27c3c36935f1f9c7e873c4c506465e47926e0eff93c402de1",
+    "fused-test-diagnostics.py": "ff54f7454f02881fddf1d71a5b704b6359bb6951bb7acaa9132fd7205824d44f",
+    "postprocessing-diagnostic.json": "0712b0637df067d07e88d65a31f908fe7c64f701550a1c067a29b12b8b0c0c6b"
+  },
+  "evaluation_source_commit": "97149a668210fe0c94483039d5034f8c3d62d081",
+  "export_source_commit": "b21e4c593c05f843c111146fb96faff9688d23cb"
 }

@@ -161,11 +161,11 @@ fixed before test evaluation; the checkpoint was selected only by validation
 mAP@0.5:0.95. Test results did not trigger retraining or threshold tuning.
 
 The [recorded snapshot](results/neu-det-baseline-20261019.json) includes history,
-resolved training arguments, CPU evaluation reports, the failed ONNX attempt and
+resolved training arguments, CPU evaluation reports, ONNX verification, prior failures and
 artifact hashes. [Notebook 02](../notebooks/02_neu_detection_baseline.ipynb) reads
 that snapshot and shows learning curves and per-class test AP without weights or a GPU.
 Training source: [c25334d](https://github.com/sugerdarco/visionForage/commit/c25334daf2dd18d97550943f92bbfe501d61882b).
-Evaluation/export source: [97149a6](https://github.com/sugerdarco/visionForage/commit/97149a668210fe0c94483039d5034f8c3d62d081).
+Evaluation and initial export source: [97149a6](https://github.com/sugerdarco/visionForage/commit/97149a668210fe0c94483039d5034f8c3d62d081).
 
 ### Dataset and training
 
@@ -248,38 +248,69 @@ split. At confidence 0.25, there are 494 matched objects,
 the overall mean does not guarantee equally reliable detection of every defect.
 Crazing is weakest, with AP@0.5 of 0.3861 and recall of 49.52% at confidence 0.25.
 
-### ONNX gate: failed, no bundle published
+### ONNX parity and CPU latency
 
-The strict export attempt requested 32 held-out test images at batches 1 and 8.
-It stopped at a failing batch whose maximum absolute error was
-**0.001678466796875**, above **0.001**.
-This is the first failing batch's error, not the maximum over a completed
-32-image check. No ONNX bundle was published, and the CPU latency stage was not
-reached. The detector export gate remains open even though test mAP passes.
+The final export passes on **32 held-out test images**, each checked at batch size
+1 and again in batches of 8. Every raw box coordinate and class probability is
+compared before confidence filtering or NMS. Relative tolerance is zero.
 
-The candidate graph uses float32, opset 17, input `[batch, 3, 640, 640]` and
-output `[batch, 10, 8400]`. Parity covers every raw coordinate in input pixels and
-every class probability before confidence filtering/NMS. Relative tolerance is
-zero. We did not normalize coordinates, filter predictions, reduce sample count
-or change tolerance to obtain a pass.
+**Approved plan amendment, 2026-10-19:** the repository owner explicitly approved
+changing the detector's absolute box-coordinate tolerance from **0.001 to 0.002
+input pixels**. Class-probability tolerance remains **0.001**; the classifier's
+logit tolerance also remains 0.001. This is a changed acceptance criterion, not
+a claim that the previous detector gate passed. The source build plan and README
+now record the amendment, and the snapshot preserves both failed attempts.
 
-The current exporter preserves Conv/BatchNorm operations with constant folding
-disabled. Its original unfused float32 PyTorch reference uses native CPU kernels
-(oneDNN disabled). ONNX Runtime uses its standard graph optimizations. That
-configuration passed earlier synthetic checks but is insufficient for this
-trained model on real images.
+The initial unfused-reference attempt stopped at error 0.001678466796875.
+Aligning export with the ordinary fused PyTorch inference model and disabling
+ONNX Runtime's additional graph optimizations reduced the full 32-image maximum
+to 0.001007080078125. Only one of 2,688,000 raw values per batch mode exceeded the
+old 0.001 limit. No model retraining, threshold tuning, prediction filtering or
+coordinate normalization was used to meet the revised acceptance criterion.
 
-Additional diagnostics used the same checkpoint, first eight seed-42 synthetic
-images and first 32 **validation** images; they did not retrain or tune quality on
-the test set. All four runtime optimization levels passed the synthetic probe,
-but failed on validation. The snapshot records both batch sizes (1 and 8), raw
-box/probability errors, and counts outside tolerance. These observations suggest
-input-dependent floating-point rounding; they do not establish an acceptable
-serving export or justify relaxing the required gate.
+| Check | Result | Required limit |
+| --- | ---: | ---: |
+| Test maximum raw-box error | 0.001007080078125 pixels | 0.002 pixels |
+| Test maximum class-probability error | 2.548098564e-06 | 0.001 |
+| Validation maximum raw-output error (32 images) | 0.000915527343750 | 0.001 in the earlier validation run |
+| Test image keys / batch sizes | 32 / 1 and 8 | 32 / 1 and 8 |
 
-The failed attempt, diagnostics, and their hashes are retained for follow-up.
-Detector latency is **not measured**. The casting classifier's independent
-passing export and CPU latency result remain valid.
+The graph uses float32 throughout, opset 17, input `[batch, 3, 640, 640]` and
+output `[batch, 10, 8400]`. The checkpoint undergoes standard Ultralytics
+Conv/BatchNorm fusion once, before making the export copy. The PyTorch reference
+retains the ordinary inference forward path with native CPU kernels (oneDNN
+disabled); ONNX-specific Detect/C2f behavior is confined to the export copy.
+This uses the same standard fusion as the existing evaluator's
+[AutoBackend](https://github.com/ultralytics/ultralytics/blob/v8.3.221/ultralytics/nn/autobackend.py).
+The checkpoint file and the reported detection quality are unchanged.
+
+Serving must use **CPUExecutionProvider with ORT_DISABLE_ALL**, as specified in
+`metadata.json` under `inference`. The default runtime graph rewrites exceeded the
+numerical gate in validation. Disabling them sacrifices potential speed for
+agreement with the PyTorch inference model; exporter constant folding remains
+on. Preprocessing and NMS stay outside the graph and are described in metadata.
+
+| VM CPU model-only measurement | Result |
+| --- | ---: |
+| Mean | 187.49 ms/image |
+| p95 | 196.54 ms/image |
+| Warmup / measured calls | 10 / 200 |
+| Batch / intra-op / inter-op threads | 1 / 2 / 1 |
+
+Measured on **AMD EPYC 9124 16-Core Processor**, ONNX Runtime
+1.31.0. Timing covers `session.run` only: decoding,
+preprocessing, NMS, session initialization, HTTP and network time are excluded.
+The plan's 50 ms target applies to the casting classifier, not this 640-pixel
+detector. This is not an end-to-end service latency measurement.
+
+An additional fixed-threshold diagnostic found the same 99 detections and ordered
+class IDs on these 32 test images after NMS; maximum post-NMS box difference was
+0.000244140625 pixels. This is recorded separately and does not replace the
+all-raw-output parity check or establish production accuracy.
+
+Export source: [b21e4c5](https://github.com/sugerdarco/visionForage/commit/b21e4c593c05f843c111146fb96faff9688d23cb).
+The snapshot records final source and artifact hashes, the approved tolerance,
+prior failures, separate validation verification and the final test report.
 
 ### Reproduce
 
@@ -311,16 +342,17 @@ Training/evaluation artifacts and export diagnostic logs are retained in
 `/usershome/t25089/visionforge/runs/neu-det-baseline-20261019/` on the VM.
 The VM also retains the prepared training files and last-epoch weights.
 The committed snapshot hashes the retained core artifacts; binary weights and
-dataset images stay outside Git. This run has no published ONNX bundle. Exact
-reproduction depends on the pinned software, hardware, worker count and source
-revisions.
+dataset images stay outside Git. The final test-verified bundle is in `onnx/`;
+`onnx-validation/` retains the earlier validation-only bundle. Exact reproduction
+depends on the pinned software, hardware, worker count and source revisions.
 
 ## Baseline progress
 
 - [x] Full casting training, validation-selected checkpoint, held-out evaluation.
 - [x] Casting ONNX parity, local CPU latency, notebook 01 and recorded results.
-- [x] Full NEU-DET training, held-out evaluation and notebook 02 with recorded export failure.
+- [x] Full NEU-DET training, held-out evaluation and notebook 02.
 - [x] Both held-out model quality targets passed on the frozen splits.
-- [ ] Next: resolve detector raw-output ONNX parity and measure CPU latency.
-- [ ] Finish the baseline export gate before local application services.
+- [x] Detector ONNX parity under the approved box tolerance, plus CPU latency.
+- [x] Baseline milestone complete under the documented plan amendment.
+- [ ] Next: local PostgreSQL, MinIO and Redis services with Docker Compose.
 - [ ] Later: active-learning comparison and notebook 03.

@@ -10,9 +10,9 @@ The first full casting baseline is complete: **99.56% defective recall**,
 model-only ONNX CPU latency. See [measured results and limitations](docs/RESULTS.md)
 and [notebook 01](notebooks/01_casting_baseline.ipynb). The full NEU-DET detector
 reaches **0.7427 test mAP@0.5** and **0.4105 mAP@0.5:0.95**;
-its strict ONNX parity check is still failing. See
+its ONNX parity check passes with the approved **0.002-pixel box tolerance**. See
 [notebook 02](notebooks/02_neu_detection_baseline.ipynb). Both model quality
-targets pass; detector export parity must be resolved before application services.
+targets and the amended export gates pass; local application services come next.
 
 ## Development setup
 
@@ -1097,8 +1097,9 @@ validation overrides, and cleanup after a deliberately incorrect runtime output.
 The initial full 640-pixel attempt failed at error 0.001678466796875 under the
 original 0.001 gate. The fused inference reference and disabled runtime rewrites
 reduced the maximum to 0.001007080078125 across all 32 test images. The owner
-approved detector tolerance 0.002 on 2026-10-19; the rerun and timing are recorded
-in [RESULTS.md](docs/RESULTS.md).
+approved detector box tolerance 0.002 on 2026-10-19, retaining score tolerance
+0.001. The final 32-test-image check passes; VM CPU model-only latency is
+187.49 ms mean / 196.54 ms p95. See [RESULTS.md](docs/RESULTS.md).
 
 ## Planned service connections
 
