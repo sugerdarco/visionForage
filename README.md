@@ -1035,11 +1035,18 @@ Raw-output parity does not guarantee identical decisions for boxes exactly at a
 confidence or NMS boundary.
 
 We use the pinned TorchScript exporter explicitly to preserve opset 17 and allow
-only batch size to vary. The export copy uses convolution/batch-normalization
-fusion and the upstream ONNX head configuration; parity against the untouched
-checkpoint also checks those transformations. The legacy exporter leaves one
-fixed output dimension symbolic, so it is annotated using the verified head
-shape and checked again against actual runtime outputs at multiple batch sizes.
+only batch size to vary. The export copy preserves separate convolution and
+batch-normalization operations and disables exporter constant folding. The
+float32 PyTorch reference uses native CPU kernels with oneDNN disabled; this
+reduces backend rounding differences observed in a 640-pixel probe. The original
+checkpoint, raw input-pixel coordinates, all predictions, 32-image requirement,
+and absolute 0.001 tolerance are unchanged. ONNX Runtime still enables its normal
+graph optimizations. These choices are recorded in `verification.json`.
+[PyTorch's numerical-accuracy notes](https://docs.pytorch.org/docs/2.9/notes/numerical_accuracy.html)
+explain why mathematically equivalent kernels and batches can differ numerically.
+The legacy exporter leaves one fixed output dimension symbolic, so it is annotated
+using the verified head shape and checked again against actual runtime outputs at
+multiple batch sizes.
 The pinned upstream behavior is documented in its
 [exporter](https://github.com/ultralytics/ultralytics/blob/v8.3.221/ultralytics/engine/exporter.py)
 and [detection head](https://github.com/ultralytics/ultralytics/blob/v8.3.221/ultralytics/nn/modules/head.py).
@@ -1053,8 +1060,8 @@ OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 \
   --split val --parity-samples 6
 ```
 
-On 2026-10-19, exports from both saved smoke checkpoints passed on six validation
-images at batches 1 and 6:
+On 2026-10-19, the initial exporter (with parameter fusion and the default
+PyTorch CPU backend) passed on six validation images at batches 1 and 6:
 
 | Export host and training run | Maximum absolute error | CPU mean / p95 |
 | --- | --- | --- |

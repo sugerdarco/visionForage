@@ -140,7 +140,9 @@ def export_detector(
         images, records, audit = parity_images(
             work, prepared, manifest, split, size, parity_samples, max(strides)
         )
-        export_model = deepcopy(model).fuse(verbose=False).eval()
+        # Preserve checkpoint Conv/BatchNorm operations. Folding their parameters
+        # introduces extra rounding, amplified by decoding boxes in input pixels.
+        export_model = deepcopy(model).eval()
         for parameter in export_model.parameters():
             parameter.requires_grad_(False)
         for module in export_model.modules():
@@ -166,6 +168,7 @@ def export_detector(
                 input_names=["images"],
                 output_names=["predictions"],
                 dynamic_axes={"images": {0: "batch"}, "predictions": {0: "batch"}},
+                do_constant_folding=False,
             )
         graph = onnx.load(model_path)
         # The legacy exporter leaves the Concat channel dimension symbolic.
@@ -191,6 +194,7 @@ def export_detector(
         options.intra_op_num_threads = cpu_threads
         options.inter_op_num_threads = 1
         options.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+        options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
         session = ort.InferenceSession(
             str(model_path), sess_options=options, providers=["CPUExecutionProvider"]
         )
@@ -211,7 +215,9 @@ def export_detector(
             )
         batch_sizes = [1, min(8, parity_samples)]
         errors = []
-        with torch.inference_mode():
+        # Native CPU kernels avoid oneDNN's batch-dependent convolution rounding.
+        # The checkpoint, float32 precision, raw-pixel tolerance and images stay fixed.
+        with torch.inference_mode(), torch.backends.mkldnn.flags(enabled=False):
             for batch_size in batch_sizes:
                 for start in range(0, parity_samples, batch_size):
                     batch = images[start : start + batch_size]
@@ -293,7 +299,7 @@ def export_detector(
                 "max_box_absolute_error": max(error["boxes"] for error in errors),
                 "max_score_absolute_error": max(error["scores"] for error in errors),
                 "scope": "All decoded boxes and class probabilities before confidence filtering or NMS",
-                "reference": "Original unfused float32 PyTorch checkpoint in evaluation mode",
+                "reference": "Original unfused float32 PyTorch checkpoint in evaluation mode, native CPU kernels (oneDNN disabled)",
                 "meets_32_test_image_check": split == "test" and parity_samples >= 32,
             },
             "latency": {
@@ -310,6 +316,10 @@ def export_detector(
                 "onnx_version": onnx.__version__,
                 "onnxruntime_version": ort.__version__,
                 "exporter": "torchscript",
+                "export_conv_batchnorm_fusion": False,
+                "export_constant_folding": False,
+                "reference_mkldnn_enabled": False,
+                "onnxruntime_graph_optimization": "ORT_ENABLE_ALL",
                 "provider": "CPUExecutionProvider",
                 "cpu_threads": cpu_threads,
                 "inter_op_threads": 1,
