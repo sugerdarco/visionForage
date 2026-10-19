@@ -12,14 +12,18 @@ and [notebook 01](notebooks/01_casting_baseline.ipynb). The full NEU-DET detecto
 reaches **0.7427 test mAP@0.5** and **0.4105 mAP@0.5:0.95**;
 its ONNX parity check passes with the approved **0.002-pixel box tolerance**. See
 [notebook 02](notebooks/02_neu_detection_baseline.ipynb). Both model quality
-targets and the amended export gates pass; local application services come next.
+targets and the amended export gates pass. Local PostgreSQL, Redis and MinIO
+setup is available in [the local services guide](docs/LOCAL.md); the API comes next.
 
 ## Development setup
 
 Lightweight development and CPU checks run locally. Training runs on a remote
 Linux GPU host through SSH, using an isolated Python 3.11 environment without
-sudo. Docker Compose is planned for the local application services; remote
+sudo. Docker Compose runs the local storage and queue services; remote
 training will not require Docker access.
+
+Follow [local setup and service connections](docs/LOCAL.md) to build the pinned
+storage tools, generate `.env`, then run `make up` and `make check-infra`.
 
 Check either machine before installing dependencies:
 
@@ -149,8 +153,8 @@ From the repository root, after setting up the training environment:
 ```bash
 "$HOME/.local/share/visionforge/venv-cpu/bin/python" -m scripts.prepare_casting
 # On the VM, from its source checkout:
-/var/tmp/visionforge-t25089/venv-cu126/bin/python -m scripts.prepare_casting \
-  --data-dir /usershome/t25089/visionforge/data
+/var/tmp/visionforge-user/venv-cu126/bin/python -m scripts.prepare_casting \
+  --data-dir /home/user/visionforge/data
 ```
 
 The command reuses the downloader to verify the pinned archive and extracted files,
@@ -236,11 +240,11 @@ training files belongs in the next adapter.
 "$HOME/.local/share/visionforge/venv-cpu/bin/python" -m scripts.prepare_neu
 ```
 
-On the VM, run from `/var/tmp/visionforge-t25089/source`:
+On the VM, run from `/var/tmp/visionforge-user/source`:
 
 ```bash
-/var/tmp/visionforge-t25089/venv-cu126/bin/python -m scripts.prepare_neu \
-  --data-dir /usershome/t25089/visionforge/data
+/var/tmp/visionforge-user/venv-cu126/bin/python -m scripts.prepare_neu \
+  --data-dir /home/user/visionforge/data
 ```
 
 This verifies the pinned archive and extracted files, decodes every image, and
@@ -313,13 +317,13 @@ held-out detection evaluation remains to be implemented.
   --data-dir data --output data/yolo/neu-det-v1-train
 ```
 
-On the VM, run from `/var/tmp/visionforge-t25089/source` with its Python environment:
+On the VM, run from `/var/tmp/visionforge-user/source` with its Python environment:
 
 ```bash
-/var/tmp/visionforge-t25089/venv-cu126/bin/python -m scripts.prepare_yolo \
-  --manifest /usershome/t25089/visionforge/data/manifests/neu-det-v1/manifest.json \
-  --data-dir /usershome/t25089/visionforge/data \
-  --output /usershome/t25089/visionforge/data/yolo/neu-det-v1-train
+/var/tmp/visionforge-user/venv-cu126/bin/python -m scripts.prepare_yolo \
+  --manifest /home/user/visionforge/data/manifests/neu-det-v1/manifest.json \
+  --data-dir /home/user/visionforge/data \
+  --output /home/user/visionforge/data/yolo/neu-det-v1-train
 ```
 
 `vf_ml.yolo.prepare_yolo_dataset` connects our shared manifest to the
@@ -468,7 +472,7 @@ print(batch["target"])      # int64 class indices: ok=0, defective=1
 print(batch["image_key"])   # keys for tracing predictions and mistakes
 ```
 
-On the VM, replace `data` with `/usershome/t25089/visionforge/data` in both paths.
+On the VM, replace `data` with `/home/user/visionforge/data` in both paths.
 Start with `num_workers=0` for straightforward debugging and low memory use locally.
 Multiple workers can overlap decoding with training; they also consume more RAM.
 Spawned workers are tested, but scripts using them need an `if __name__ == "__main__":`
@@ -544,9 +548,9 @@ Rerun the environment setup to install the updated pinned dependencies, then:
 "$HOME/.local/share/visionforge/venv-cpu/bin/python" -m scripts.check_classifier \
   --cache-dir data/model-cache
 # On the VM, from the source directory; this also defaults to CPU:
-/var/tmp/visionforge-t25089/venv-cu126/bin/python -m scripts.check_classifier \
-  --data-dir /usershome/t25089/visionforge/data \
-  --cache-dir /usershome/t25089/visionforge/models
+/var/tmp/visionforge-user/venv-cu126/bin/python -m scripts.check_classifier \
+  --data-dir /home/user/visionforge/data \
+  --cache-dir /home/user/visionforge/models
 ```
 
 The check uses four training images for a forward pass, finite loss and gradient
@@ -576,11 +580,11 @@ From the repository root on the VM, after selecting an available allocated GPU
 with `CUDA_VISIBLE_DEVICES`:
 
 ```bash
-/var/tmp/visionforge-t25089/venv-cu126/bin/python -m scripts.train_classifier \
-  --data-dir /usershome/t25089/visionforge/data \
-  --manifest /usershome/t25089/visionforge/data/manifests/casting-v2/manifest.json \
-  --cache-dir /usershome/t25089/visionforge/models \
-  --output /usershome/t25089/visionforge/runs/casting-baseline-1 \
+/var/tmp/visionforge-user/venv-cu126/bin/python -m scripts.train_classifier \
+  --data-dir /home/user/visionforge/data \
+  --manifest /home/user/visionforge/data/manifests/casting-v2/manifest.json \
+  --cache-dir /home/user/visionforge/models \
+  --output /home/user/visionforge/runs/casting-baseline-1 \
   --device cuda --workers 2 --horizontal-flip --vertical-flip
 ```
 
@@ -800,13 +804,13 @@ the updated pinned requirements on each machine.
 For a full baseline on one available, allocated remote GPU:
 
 ```bash
-cd /var/tmp/visionforge-t25089/source
+cd /var/tmp/visionforge-user/source
 CUDA_VISIBLE_DEVICES=4 OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 \
-  /var/tmp/visionforge-t25089/venv-cu126/bin/python -m scripts.train_detector \
-  --manifest /usershome/t25089/visionforge/data/manifests/neu-det-v1/manifest.json \
-  --data-dir /usershome/t25089/visionforge/data \
-  --cache-dir /usershome/t25089/visionforge/models/yolo \
-  --output /usershome/t25089/visionforge/runs/neu-det-baseline-1 \
+  /var/tmp/visionforge-user/venv-cu126/bin/python -m scripts.train_detector \
+  --manifest /home/user/visionforge/data/manifests/neu-det-v1/manifest.json \
+  --data-dir /home/user/visionforge/data \
+  --cache-dir /home/user/visionforge/models/yolo \
+  --output /home/user/visionforge/runs/neu-det-baseline-1 \
   --device cuda --workers 2
 ```
 
@@ -1111,5 +1115,5 @@ exported ONNX models behind a reverse proxy.
 
 Private service connections between the machines will use SSH forwarding. This
 avoids exposing database and queue ports, but requires the local machine and
-tunnel to remain available during integrated training. The initial ML baseline
-will run directly on the remote host without these application services.
+tunnel to remain available during integrated training. The ML baselines run
+directly on the remote host without these application services.

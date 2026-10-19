@@ -1,0 +1,78 @@
+name: visionforge
+
+services:
+  postgres:
+    image: postgres:16.15-bookworm@sha256:0ea6700a3b4f0ae6ce746519073558aed4d88a79d8d07622a9a644946c7319c4
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-visionforge}
+      POSTGRES_USER: ${POSTGRES_USER:-visionforge}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run make env first}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.4.11-bookworm@sha256:4fa24486b8bcca8eec45ee0eb166edc674795e53a2b53d1a9ef263eecebaac85
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Run make env first}
+    command:
+      - /bin/sh
+      - -ec
+      - 'exec docker-entrypoint.sh redis-server --appendonly yes --appendfsync everysec --maxmemory-policy noeviction --requirepass "$$REDIS_PASSWORD"'
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: [CMD-SHELL, 'REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli ping | grep -qx PONG']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  minio:
+    image: visionforge-minio:2025-10-15
+    platform: linux/amd64
+    build:
+      context: ../artifacts/minio
+      dockerfile: ../../infra/minio.Dockerfile
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-visionforge}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Run make env first}
+    ports:
+      - "127.0.0.1:${MINIO_API_PORT:-9000}:9000"
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, 'http://127.0.0.1:9000/minio/health/ready']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
+  storage-init:
+    image: visionforge-minio:2025-10-15
+    platform: linux/amd64
+    profiles: [tools]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-visionforge}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Run make env first}
+    entrypoint: [/bin/sh, -ec]
+    command:
+      - |
+        mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" >/dev/null
+        mc mb --ignore-existing local/vf-images local/vf-datasets local/vf-artifacts local/vf-predictions
+
+volumes:
+  pg_data:
+  redis_data:
+  minio_data:

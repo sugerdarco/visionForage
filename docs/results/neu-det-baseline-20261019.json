@@ -158,18 +158,18 @@
     "source_commit": "c25334d",
     "started_at_utc": "2026-10-19T05:55:18.344916+00:00",
     "argv": [
-      "/var/tmp/visionforge-t25089/venv-cu126/bin/python",
+      "/var/tmp/visionforge-user/venv-cu126/bin/python",
       "-u",
       "-m",
       "scripts.train_detector",
       "--manifest",
-      "/usershome/t25089/visionforge/data/manifests/neu-det-v1/manifest.json",
+      "/home/user/visionforge/data/manifests/neu-det-v1/manifest.json",
       "--data-dir",
-      "/usershome/t25089/visionforge/data",
+      "/home/user/visionforge/data",
       "--cache-dir",
-      "/usershome/t25089/visionforge/models/yolo",
+      "/home/user/visionforge/models/yolo",
       "--output",
-      "/usershome/t25089/visionforge/runs/neu-det-baseline-20261019",
+      "/home/user/visionforge/runs/neu-det-baseline-20261019",
       "--device",
       "cuda",
       "--epochs",
@@ -187,7 +187,7 @@
       "--cpu-threads",
       "2"
     ],
-    "working_directory": "/var/tmp/visionforge-t25089/source",
+    "working_directory": "/var/tmp/visionforge-user/source",
     "gpu_before_launch": "1, GPU-9fb0951d-bcb7-e975-03ab-d2990ef81e5a, NVIDIA RTX A6000, 1, 0",
     "manifest_sha256": "8bf7bfca0af99f0af4decdbdab53a423fcf32ac34822d7cf6d3963c059859615",
     "dataset_audit_sha256": "77fb2c01f6a8134f6400cc511902b6e211d11dc1d58861c8941bc781fad683be",
@@ -2423,8 +2423,8 @@
   "ultralytics_arguments": {
     "task": "detect",
     "mode": "train",
-    "model": "/usershome/t25089/visionforge/models/yolo/yolov8s.pt",
-    "data": "/usershome/t25089/visionforge/runs/neu-det-baseline-20261019/dataset/dataset.yaml",
+    "model": "/home/user/visionforge/models/yolo/yolov8s.pt",
+    "data": "/home/user/visionforge/runs/neu-det-baseline-20261019/dataset/dataset.yaml",
     "epochs": 100,
     "time": null,
     "patience": 20,
@@ -2435,7 +2435,7 @@
     "cache": false,
     "device": "1",
     "workers": 4,
-    "project": "/usershome/t25089/visionforge/runs/neu-det-baseline-20261019",
+    "project": "/home/user/visionforge/runs/neu-det-baseline-20261019",
     "name": "fit",
     "exist_ok": false,
     "pretrained": true,
@@ -2526,7 +2526,7 @@
     "erasing": 0.4,
     "cfg": null,
     "tracker": "botsort.yaml",
-    "save_dir": "/usershome/t25089/visionforge/runs/neu-det-baseline-20261019/fit"
+    "save_dir": "/home/user/visionforge/runs/neu-det-baseline-20261019/fit"
   },
   "duplicate_label_rows": [
     {
@@ -3516,5 +3516,6 @@
     "postprocessing-diagnostic.json": "0712b0637df067d07e88d65a31f908fe7c64f701550a1c067a29b12b8b0c0c6b"
   },
   "evaluation_source_commit": "97149a668210fe0c94483039d5034f8c3d62d081",
-  "export_source_commit": "b21e4c593c05f843c111146fb96faff9688d23cb"
+  "export_source_commit": "b21e4c593c05f843c111146fb96faff9688d23cb",
+  "publication_note": "Remote account names and filesystem paths are replaced with generic placeholders. Metrics and artifact hashes are unchanged; hashes refer to the original private artifacts."
 }

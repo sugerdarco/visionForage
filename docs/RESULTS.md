@@ -122,11 +122,11 @@ select a GPU assigned to your workload and use a new output directory:
 ```bash
 export CUDA_VISIBLE_DEVICES=1  # replace with the GPU selected for your workload
 HF_HUB_OFFLINE=1 OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 \
-  /var/tmp/visionforge-t25089/venv-cu126/bin/python -m scripts.train_classifier \
-  --manifest /usershome/t25089/visionforge/data/manifests/casting-v2/manifest.json \
-  --data-dir /usershome/t25089/visionforge/data \
-  --cache-dir /usershome/t25089/visionforge/models \
-  --output /usershome/t25089/visionforge/runs/casting-baseline-reproduction \
+  /var/tmp/visionforge-user/venv-cu126/bin/python -m scripts.train_classifier \
+  --manifest /home/user/visionforge/data/manifests/casting-v2/manifest.json \
+  --data-dir /home/user/visionforge/data \
+  --cache-dir /home/user/visionforge/models \
+  --output /home/user/visionforge/runs/casting-baseline-reproduction \
   --device cuda --epochs 20 --batch-size 64 --learning-rate 0.0003 \
   --weight-decay 0.01 --label-smoothing 0.1 --patience 5 --seed 42 \
   --workers 4 --cpu-threads 2 --horizontal-flip --vertical-flip
@@ -149,7 +149,7 @@ BASELINE_PYTHON="$HOME/.local/share/visionforge/venv-cpu/bin/python"
 
 Full artifacts for the measured run are retained under
 `runs/casting-baseline-20261019/` locally and
-`/usershome/t25089/visionforge/runs/casting-baseline-20261019/` on the VM.
+`/home/user/visionforge/runs/casting-baseline-20261019/` on the VM.
 The committed JSON records their SHA-256 hashes. Images, checkpoints, and ONNX
 binaries are not committed. Exact reproduction assumes the same software,
 hardware and worker configuration; CPU and CUDA need not produce identical runs.
@@ -319,27 +319,27 @@ GPU assigned to this workload; the recorded run used GPU 1 when it was idle.
 
 ```bash
 export CUDA_VISIBLE_DEVICES=1
-NEU_RUN=/usershome/t25089/visionforge/runs/neu-det-baseline-reproduction
-NEU_PYTHON=/var/tmp/visionforge-t25089/venv-cu126/bin/python
+NEU_RUN=/home/user/visionforge/runs/neu-det-baseline-reproduction
+NEU_PYTHON=/var/tmp/visionforge-user/venv-cu126/bin/python
 export OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 CUBLAS_WORKSPACE_CONFIG=:4096:8
 "$NEU_PYTHON" -m scripts.train_detector \
-  --manifest /usershome/t25089/visionforge/data/manifests/neu-det-v1/manifest.json \
-  --data-dir /usershome/t25089/visionforge/data \
-  --cache-dir /usershome/t25089/visionforge/models/yolo \
+  --manifest /home/user/visionforge/data/manifests/neu-det-v1/manifest.json \
+  --data-dir /home/user/visionforge/data \
+  --cache-dir /home/user/visionforge/models/yolo \
   --output "$NEU_RUN" --device cuda --epochs 100 --image-size 640 \
   --batch-size 16 --patience 20 --seed 42 --workers 4 --cpu-threads 2
 "$NEU_PYTHON" -m scripts.evaluate_detector \
-  --checkpoint "$NEU_RUN/best.pt" --data-dir /usershome/t25089/visionforge/data \
+  --checkpoint "$NEU_RUN/best.pt" --data-dir /home/user/visionforge/data \
   --split val --output "$NEU_RUN/validation-report.json"
 "$NEU_PYTHON" -m scripts.evaluate_detector \
-  --checkpoint "$NEU_RUN/best.pt" --data-dir /usershome/t25089/visionforge/data
+  --checkpoint "$NEU_RUN/best.pt" --data-dir /home/user/visionforge/data
 "$NEU_PYTHON" -m scripts.export_detector \
-  --checkpoint "$NEU_RUN/best.pt" --data-dir /usershome/t25089/visionforge/data
+  --checkpoint "$NEU_RUN/best.pt" --data-dir /home/user/visionforge/data
 ```
 
 Training/evaluation artifacts and export diagnostic logs are retained in
 `runs/neu-det-baseline-20261019/` locally and
-`/usershome/t25089/visionforge/runs/neu-det-baseline-20261019/` on the VM.
+`/home/user/visionforge/runs/neu-det-baseline-20261019/` on the VM.
 The VM also retains the prepared training files and last-epoch weights.
 The committed snapshot hashes the retained core artifacts; binary weights and
 dataset images stay outside Git. The final test-verified bundle is in `onnx/`;
@@ -354,5 +354,10 @@ depends on the pinned software, hardware, worker count and source revisions.
 - [x] Both held-out model quality targets passed on the frozen splits.
 - [x] Detector ONNX parity under the approved box tolerance, plus CPU latency.
 - [x] Baseline milestone complete under the documented plan amendment.
-- [ ] Next: local PostgreSQL, MinIO and Redis services with Docker Compose.
+- [x] Local PostgreSQL, MinIO and Redis services with Docker Compose; see [setup and checks](LOCAL.md).
+- [ ] Next: database schema, Alembic migrations and the FastAPI foundation.
 - [ ] Later: active-learning comparison and notebook 03.
+
+Remote account names and filesystem paths in published examples and the detector
+snapshot are placeholders. Recorded metrics and artifact hashes are unchanged;
+the hashes refer to the original private artifacts.
