@@ -8,7 +8,11 @@ The application and deployment services will follow once the ML pipeline works.
 The first full casting baseline is complete: **99.56% defective recall**,
 **99.72% test accuracy**, and **16.96 ms mean / 17.51 ms p95**
 model-only ONNX CPU latency. See [measured results and limitations](docs/RESULTS.md)
-and [notebook 01](notebooks/01_casting_baseline.ipynb). Full NEU-DET results remain pending.
+and [notebook 01](notebooks/01_casting_baseline.ipynb). The full NEU-DET detector
+reaches **0.7427 test mAP@0.5** and **0.4105 mAP@0.5:0.95**;
+its strict ONNX parity check is still failing. See
+[notebook 02](notebooks/02_neu_detection_baseline.ipynb). Both model quality
+targets pass; detector export parity must be resolved before application services.
 
 ## Development setup
 
@@ -884,7 +888,8 @@ this check locally and on the VM CPU (`neu-det-cpu-smoke-20261019`), plus VM GPU
 (`neu-det-gpu-smoke-20261019-v2`) with AMP enabled and its check passed. All saved a
 best checkpoint and finite history. Their validation mAP is zero; these tiny,
 low-resolution checks establish execution, not detector quality. The 100-epoch,
-640-pixel baseline and held-out test metrics remain pending.
+640-pixel run `neu-det-baseline-20261019` later completed all 100 epochs and
+selected epoch 96. Its held-out results are recorded in [RESULTS.md](docs/RESULTS.md).
 
 Existing run paths are refused. Caught failures mark `run.json` failed and keep
 artifacts for diagnosis; a forcibly killed process may leave status `running`.
@@ -969,9 +974,10 @@ On 2026-10-19 this scored all **6 validation images / 15 boxes** locally. The VM
 also evaluated its `neu-det-gpu-smoke-20261019-v2` checkpoint on CPU with the same
 counts. A separate synthetic fixture exercises the default test split, background
 images, absent classes, and duplicate-label auditing. These are execution checks;
-the smoke snapshots contain no test images, and the full NEU-DET test split has
-not been scored. Full baseline training and held-out quality results are still
-pending; detection ONNX export is available below.
+the smoke snapshots contain no test images. The later full baseline evaluated
+all 271 held-out test images and 653 effective boxes (655 manifest rows) after
+checkpoint selection; see
+[recorded results](docs/RESULTS.md#neu-det-detector--neu-det-baseline-20261019).
 
 ## Export a detector to ONNX
 
@@ -1075,7 +1081,10 @@ These are **64-pixel smoke timings**, not 640-pixel baseline or service latency.
 Both reports correctly set `meets_32_test_image_check` to false. A synthetic test
 uses a real YOLOv8s architecture to exercise the 32-image gate, batches 1/8,
 validation overrides, and cleanup after a deliberately incorrect runtime output.
-The full trained baseline still needs its own held-out parity check and timings.
+The later full 640-pixel baseline failed its strict export check: the first
+failing batch had maximum absolute error 0.001678466796875, above 0.001.
+No bundle was published and latency was not measured. The validation diagnostics
+and remaining export work are recorded in [RESULTS.md](docs/RESULTS.md).
 
 ## Planned service connections
 

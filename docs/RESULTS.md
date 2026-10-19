@@ -6,7 +6,7 @@ This is the first full-data casting baseline, trained on 2026-10-19. It uses
 pretrained ResNet-18, the frozen casting-v2 manifest, and the existing training
 recipe. Hyperparameters were fixed before test evaluation. The checkpoint was
 selected solely by validation loss; classification uses argmax with no test-tuned
-threshold. NEU-DET baseline quality results and active learning remain pending.
+threshold. The NEU-DET baseline is recorded below; active learning remains pending.
 
 The [machine-readable snapshot](results/casting-baseline-20261019.json) contains the actual
 history, validation/test reports, ONNX metadata, verification, and artifact hashes.
@@ -154,10 +154,173 @@ The committed JSON records their SHA-256 hashes. Images, checkpoints, and ONNX
 binaries are not committed. Exact reproduction assumes the same software,
 hardware and worker configuration; CPU and CUDA need not produce identical runs.
 
-## Remaining baseline work
+## NEU-DET detector — neu-det-baseline-20261019
+
+The full pretrained YOLOv8s baseline completed on 2026-10-19. The recipe was
+fixed before test evaluation; the checkpoint was selected only by validation
+mAP@0.5:0.95. Test results did not trigger retraining or threshold tuning.
+
+The [recorded snapshot](results/neu-det-baseline-20261019.json) includes history,
+resolved training arguments, CPU evaluation reports, the failed ONNX attempt and
+artifact hashes. [Notebook 02](../notebooks/02_neu_detection_baseline.ipynb) reads
+that snapshot and shows learning curves and per-class test AP without weights or a GPU.
+Training source: [c25334d](https://github.com/sugerdarco/visionForage/commit/c25334daf2dd18d97550943f92bbfe501d61882b).
+Evaluation/export source: [97149a6](https://github.com/sugerdarco/visionForage/commit/97149a668210fe0c94483039d5034f8c3d62d081).
+
+### Dataset and training
+
+| Split | Images | Manifest boxes | Effective loader boxes |
+| --- | ---: | ---: | ---: |
+| Train | 1,259 | 2,909 | 2,908 |
+| Validation | 270 | 625 | 625 |
+| Test | 271 | 655 | 653 |
+
+All 1,800 image files and XML annotations were checked against the preparation
+audit before training. Manifest SHA-256:
+`8bf7bfca0af99f0af4decdbdab53a423fcf32ac34822d7cf6d3963c059859615`.
+The loader removes one duplicate training label row and two duplicate test rows
+(one crazing, one patches), with no other label or image loss. Identical pixels
+stay in one split; two test images (`patches_101` and
+`patches_105`) have identical pixels but different annotations and are retained.
+Difficult/truncated objects remain ordinary targets; the test manifest contains
+20 difficult annotation rows. This is a custom split stratified by filename family, not an official
+benchmark. No acquisition/parent IDs are available to prove full independence.
+
+| Setting | Value |
+| --- | --- |
+| Model | COCO-pretrained YOLOv8s, six defect classes |
+| Input / batch / seed | 640 × 640 / 16 / 42 |
+| Hardware | Remote RTX A6000, GPU 1 at launch |
+| Precision / loading | float16 AMP / four workers, two CPU threads |
+| Epoch limit / early-stop patience | 100 / 20 |
+| Completed / selected epoch | 100 / 96 |
+| Selection fitness | 0.43982 validation mAP@0.5:0.95 |
+| Resolved optimizer | AdamW, learning rate 0.001, momentum 0.9, weight decay 0.0005 |
+| Schedule | Three warmup epochs, linear decay; nominal batch size 64 with accumulation |
+| Augmentation | Pinned YOLO defaults for HSV, translation, scale and mosaic; both flips disabled; mosaic closes for final 10 epochs |
+| Successful / AMP-skipped updates | 2021 / 10 |
+| Training wall time | 15.27 minutes including setup and validation |
+
+YOLOv8s is a compact one-stage baseline that fits the shared manifest-to-ONNX
+workflow. The 640-pixel input follows the plan, although source images are
+200 × 200: resizing increases compute without adding new source detail. Larger
+models or alternative input sizes should be compared on validation before any
+new held-out evaluation. Flips remain disabled to preserve surface orientation.
+
+`optimizer=auto` chose AdamW; the saved pre-resolution arguments still contain
+library defaults for `lr0` and `momentum`. The snapshot records the actual
+optimizer announcement separately. AMP skipped 10 overflowing updates while
+adjusting its scale; every epoch made successful updates. Training reached the
+100-epoch limit rather than stopping early.
+
+### Selected checkpoint results
+
+These reports evaluate the saved epoch-96 checkpoint on CPU in float32,
+with fixed square letterboxing and batch 16. The trainer uses a different
+validation path (padding/precision and final model fusion can differ), so its
+selection fitness and final validation recheck are retained separately in the
+snapshot. The CPU report is not claimed to exactly reproduce those numbers.
+
+AP uses confidence floor 0.001, NMS IoU 0.7, and at most 300 detections/image.
+Fixed precision/recall uses confidence 0.25 and matching IoU 0.5, with matches
+recomputed after filtering. It is distinct from the trainer's best-F1 threshold.
+
+| Split | mAP@0.5 | mAP@0.5:0.95 | Fixed micro precision | Fixed micro recall |
+| --- | ---: | ---: | ---: | ---: |
+| Validation | 0.7194 | 0.4116 | 60.08% | 74.88% |
+| Held-out test | 0.7427 | 0.4105 | 63.91% | 75.65% |
+
+Test per-class object metrics:
+
+| Class | Boxes | AP@0.5 | AP@0.5:0.95 | Precision | Recall | FP | FN |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| crazing | 105 | 0.3861 | 0.1638 | 38.24% | 49.52% | 84 | 53 |
+| inclusion | 157 | 0.7860 | 0.4131 | 72.46% | 77.07% | 46 | 36 |
+| patches | 140 | 0.8721 | 0.5463 | 74.85% | 87.14% | 41 | 18 |
+| pitted_surface | 63 | 0.9152 | 0.5673 | 76.71% | 88.89% | 17 | 7 |
+| rolled-in_scale | 100 | 0.5974 | 0.2600 | 54.78% | 63.00% | 52 | 37 |
+| scratches | 88 | 0.8993 | 0.5123 | 67.23% | 90.91% | 39 | 8 |
+
+Test **mAP@0.5 is 0.7427**, meeting the plan's **0.70** target on this
+split. At confidence 0.25, there are 494 matched objects,
+279 false-positive detections and
+159 missed objects. Per-class differences matter;
+the overall mean does not guarantee equally reliable detection of every defect.
+Crazing is weakest, with AP@0.5 of 0.3861 and recall of 49.52% at confidence 0.25.
+
+### ONNX gate: failed, no bundle published
+
+The strict export attempt requested 32 held-out test images at batches 1 and 8.
+It stopped at a failing batch whose maximum absolute error was
+**0.001678466796875**, above **0.001**.
+This is the first failing batch's error, not the maximum over a completed
+32-image check. No ONNX bundle was published, and the CPU latency stage was not
+reached. The detector export gate remains open even though test mAP passes.
+
+The candidate graph uses float32, opset 17, input `[batch, 3, 640, 640]` and
+output `[batch, 10, 8400]`. Parity covers every raw coordinate in input pixels and
+every class probability before confidence filtering/NMS. Relative tolerance is
+zero. We did not normalize coordinates, filter predictions, reduce sample count
+or change tolerance to obtain a pass.
+
+The current exporter preserves Conv/BatchNorm operations with constant folding
+disabled. Its original unfused float32 PyTorch reference uses native CPU kernels
+(oneDNN disabled). ONNX Runtime uses its standard graph optimizations. That
+configuration passed earlier synthetic checks but is insufficient for this
+trained model on real images.
+
+Additional diagnostics used the same checkpoint, first eight seed-42 synthetic
+images and first 32 **validation** images; they did not retrain or tune quality on
+the test set. All four runtime optimization levels passed the synthetic probe,
+but failed on validation. The snapshot records both batch sizes (1 and 8), raw
+box/probability errors, and counts outside tolerance. These observations suggest
+input-dependent floating-point rounding; they do not establish an acceptable
+serving export or justify relaxing the required gate.
+
+The failed attempt, diagnostics, and their hashes are retained for follow-up.
+Detector latency is **not measured**. The casting classifier's independent
+passing export and CPU latency result remain valid.
+
+### Reproduce
+
+Use the pinned CUDA environment on the VM and a new output directory. Select a
+GPU assigned to this workload; the recorded run used GPU 1 when it was idle.
+
+```bash
+export CUDA_VISIBLE_DEVICES=1
+NEU_RUN=/usershome/t25089/visionforge/runs/neu-det-baseline-reproduction
+NEU_PYTHON=/var/tmp/visionforge-t25089/venv-cu126/bin/python
+export OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 CUBLAS_WORKSPACE_CONFIG=:4096:8
+"$NEU_PYTHON" -m scripts.train_detector \
+  --manifest /usershome/t25089/visionforge/data/manifests/neu-det-v1/manifest.json \
+  --data-dir /usershome/t25089/visionforge/data \
+  --cache-dir /usershome/t25089/visionforge/models/yolo \
+  --output "$NEU_RUN" --device cuda --epochs 100 --image-size 640 \
+  --batch-size 16 --patience 20 --seed 42 --workers 4 --cpu-threads 2
+"$NEU_PYTHON" -m scripts.evaluate_detector \
+  --checkpoint "$NEU_RUN/best.pt" --data-dir /usershome/t25089/visionforge/data \
+  --split val --output "$NEU_RUN/validation-report.json"
+"$NEU_PYTHON" -m scripts.evaluate_detector \
+  --checkpoint "$NEU_RUN/best.pt" --data-dir /usershome/t25089/visionforge/data
+"$NEU_PYTHON" -m scripts.export_detector \
+  --checkpoint "$NEU_RUN/best.pt" --data-dir /usershome/t25089/visionforge/data
+```
+
+Training/evaluation artifacts and export diagnostic logs are retained in
+`runs/neu-det-baseline-20261019/` locally and
+`/usershome/t25089/visionforge/runs/neu-det-baseline-20261019/` on the VM.
+The VM also retains the prepared training files and last-epoch weights.
+The committed snapshot hashes the retained core artifacts; binary weights and
+dataset images stay outside Git. This run has no published ONNX bundle. Exact
+reproduction depends on the pinned software, hardware, worker count and source
+revisions.
+
+## Baseline progress
 
 - [x] Full casting training, validation-selected checkpoint, held-out evaluation.
 - [x] Casting ONNX parity, local CPU latency, notebook 01 and recorded results.
-- [ ] Full NEU-DET training, held-out evaluation, ONNX verification and notebook 02.
-- [ ] Complete the baseline milestone before starting the application services.
+- [x] Full NEU-DET training, held-out evaluation and notebook 02 with recorded export failure.
+- [x] Both held-out model quality targets passed on the frozen splits.
+- [ ] Next: resolve detector raw-output ONNX parity and measure CPU latency.
+- [ ] Finish the baseline export gate before local application services.
 - [ ] Later: active-learning comparison and notebook 03.
