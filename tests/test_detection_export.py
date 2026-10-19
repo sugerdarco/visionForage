@@ -65,6 +65,19 @@ class DetectionExportTest(unittest.TestCase):
             check_predictions(reference, reference.copy(), 2, 84),
             {"boxes": 0, "scores": 0},
         )
+        rounding = reference.copy()
+        rounding[:, 0] += 0.0015
+        self.assertLessEqual(
+            check_predictions(reference, rounding, 2, 84)["boxes"], 0.002
+        )
+        outside = reference.copy()
+        outside[:, 0] += 0.0021
+        with self.assertRaisesRegex(ValueError, "ONNX parity failed"):
+            check_predictions(reference, outside, 2, 84)
+        score_change = reference.copy()
+        score_change[:, 4:] += 0.0015
+        with self.assertRaisesRegex(ValueError, "max score absolute error"):
+            check_predictions(reference, score_change, 2, 84)
         different = reference.copy()
         different[:, 0] += 0.01
         with self.assertRaisesRegex(ValueError, "ONNX parity failed"):
@@ -209,7 +222,11 @@ assert not list(root.glob('.detection-onnx-*'))
         self.assertEqual(report["parity"]["samples"], 32)
         self.assertEqual(len(set(report["parity"]["image_keys"])), 32)
         self.assertEqual(len(report["parity"]["image_sha256"]), 32)
-        self.assertLessEqual(report["parity"]["max_absolute_error"], 1e-3)
+        self.assertEqual(report["parity"]["absolute_tolerance"], 2e-3)
+        self.assertEqual(report["parity"]["box_absolute_tolerance"], 2e-3)
+        self.assertEqual(report["parity"]["score_absolute_tolerance"], 1e-3)
+        self.assertEqual(report["parity"]["relative_tolerance"], 0)
+        self.assertLessEqual(report["parity"]["max_absolute_error"], 2e-3)
         self.assertEqual(report["latency"]["measured_runs"], 200)
         self.assertTrue(report["runtime"]["export_conv_batchnorm_fusion"])
         self.assertTrue(report["runtime"]["reference_conv_batchnorm_fusion"])

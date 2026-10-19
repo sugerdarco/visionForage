@@ -19,7 +19,9 @@ from vf_ml.yolo import prepare_yolo_dataset
 
 
 OPSET = 17
-PARITY_ATOL = 1e-3
+# Detector raw-pixel tolerance approved on 2026-10-19; see docs/RESULTS.md.
+PARITY_ATOL = 2e-3
+SCORE_PARITY_ATOL = 1e-3
 
 
 def check_predictions(reference, actual, classes, anchors):
@@ -39,12 +41,17 @@ def check_predictions(reference, actual, classes, anchors):
     ):
         raise ValueError("Detector returned invalid or non-finite raw predictions")
     errors = np.abs(reference.astype(np.float64) - actual)
-    maximum = float(errors.max())
-    if maximum > PARITY_ATOL:
+    box_error = float(errors[:, :4].max())
+    score_error = float(errors[:, 4:].max())
+    if box_error > PARITY_ATOL:
         raise ValueError(
-            f"ONNX parity failed: max absolute error {maximum} > {PARITY_ATOL}"
+            f"ONNX parity failed: max box absolute error {box_error} > {PARITY_ATOL}"
         )
-    return {"boxes": float(errors[:, :4].max()), "scores": float(errors[:, 4:].max())}
+    if score_error > SCORE_PARITY_ATOL:
+        raise ValueError(
+            f"ONNX parity failed: max score absolute error {score_error} > {SCORE_PARITY_ATOL}"
+        )
+    return {"boxes": box_error, "scores": score_error}
 
 
 def parity_images(work, prepared, manifest, split, size, count, stride):
@@ -303,6 +310,8 @@ def export_detector(
                 },
                 "batch_sizes": batch_sizes,
                 "absolute_tolerance": PARITY_ATOL,
+                "box_absolute_tolerance": PARITY_ATOL,
+                "score_absolute_tolerance": SCORE_PARITY_ATOL,
                 "relative_tolerance": 0.0,
                 "max_absolute_error": max(max(error.values()) for error in errors),
                 "max_box_absolute_error": max(error["boxes"] for error in errors),

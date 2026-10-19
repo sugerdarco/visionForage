@@ -998,9 +998,9 @@ OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 \
 
 By default this requires **32 test image keys** from the run's exact frozen
 manifest. Each image is compared at batch size 1 and in batches of up to 8.
-Every decoded box coordinate and class probability must agree with the original
-unfused float32 PyTorch checkpoint within **absolute error 0.001**, with no relative
-tolerance. Box errors are measured in padded input pixels. Non-finite outputs,
+Every raw prediction must agree with the standard fused float32 PyTorch inference
+model: **absolute box error 0.002 pixels**, **class-probability error 0.001**, and
+relative tolerance zero. Box errors are measured in padded input pixels. Non-finite outputs,
 wrong tensor shapes, changed provenance, or parity failure prevent publication.
 Images are selected in manifest order, and their keys and byte hashes are recorded.
 
@@ -1056,8 +1056,10 @@ loader must apply them rather than accepting ONNX Runtime's default optimization
 Disabling these rewrites trades potential speed for numerical agreement. Exporter
 constant folding remains enabled. The checkpoint file, float32 inputs/outputs,
 raw input-pixel coordinates, all predictions, 32-image requirement and absolute
-0.001 tolerance are unchanged. The reference is now the standard **fused**
-PyTorch inference model, rather than the earlier unfused reference.
+0.002 detector tolerance are recorded. The owner approved this change from
+0.001 on 2026-10-19; it does not mean the previous gate passed. The reference is
+now the standard **fused** PyTorch inference model, rather than the earlier unfused
+reference.
 [PyTorch's numerical-accuracy notes](https://docs.pytorch.org/docs/2.9/notes/numerical_accuracy.html)
 and [ONNX Runtime's optimization documentation](https://onnxruntime.ai/docs/performance/model-optimizations/graph-optimizations.html)
 explain why equivalent graphs can execute with different arithmetic.
@@ -1092,10 +1094,11 @@ These are **64-pixel smoke timings**, not 640-pixel baseline or service latency.
 Both reports correctly set `meets_32_test_image_check` to false. A synthetic test
 uses a real YOLOv8s architecture to exercise the 32-image gate, batches 1/8,
 validation overrides, and cleanup after a deliberately incorrect runtime output.
-The later full 640-pixel baseline failed its strict export check: the first
-failing batch had maximum absolute error 0.001678466796875, above 0.001.
-No bundle was published and latency was not measured. The validation diagnostics
-and remaining export work are recorded in [RESULTS.md](docs/RESULTS.md).
+The initial full 640-pixel attempt failed at error 0.001678466796875 under the
+original 0.001 gate. The fused inference reference and disabled runtime rewrites
+reduced the maximum to 0.001007080078125 across all 32 test images. The owner
+approved detector tolerance 0.002 on 2026-10-19; the rerun and timing are recorded
+in [RESULTS.md](docs/RESULTS.md).
 
 ## Planned service connections
 
