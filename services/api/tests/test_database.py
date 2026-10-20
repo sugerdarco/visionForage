@@ -1,13 +1,10 @@
 """Real PostgreSQL checks in a fresh disposable database, never the app database."""
 
-from pathlib import Path
-import unittest
 from uuid import UUID, uuid4
 
-from alembic import command
 from alembic.autogenerate import compare_metadata
-from alembic.config import Config
 from alembic.migration import MigrationContext
+from database_fixture import DisposableDatabaseTest
 import sqlalchemy as sa
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -26,45 +23,9 @@ from vf_api.models import (
     TrainingMetric,
     User,
 )
-from vf_api.settings import Settings
 
 
-class DatabaseTest(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        url = Settings().database_url
-        cls.name = "vf_test_" + uuid4().hex
-        cls.admin = sa.create_engine(
-            url.set(database="postgres"),
-            isolation_level="AUTOCOMMIT",
-            hide_parameters=True,
-            connect_args={"connect_timeout": 10},
-        )
-        with cls.admin.connect() as connection:
-            connection.execute(sa.text(f'CREATE DATABASE "{cls.name}"'))
-        cls.engine = sa.create_engine(url.set(database=cls.name), hide_parameters=True)
-        cls.addClassCleanup(cls.drop_database)
-        cls.config = Config(str(Path(__file__).resolve().parents[1] / "alembic.ini"))
-        cls.migrate("upgrade", "head")
-
-    @classmethod
-    def drop_database(cls):
-        cls.engine.dispose()
-        try:
-            with cls.admin.connect() as connection:
-                connection.execute(sa.text(f'DROP DATABASE "{cls.name}" WITH (FORCE)'))
-        finally:
-            cls.admin.dispose()
-
-    @classmethod
-    def migrate(cls, action, revision):
-        with cls.engine.begin() as connection:
-            cls.config.attributes["connection"] = connection
-            try:
-                getattr(command, action)(cls.config, revision)
-            finally:
-                cls.config.attributes.pop("connection")
-
+class DatabaseTest(DisposableDatabaseTest):
     def setUp(self):
         self.session = Session(self.engine)
         self.addCleanup(self.session.close)

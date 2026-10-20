@@ -7,7 +7,7 @@ import unittest
 from pydantic import ValidationError
 from sqlalchemy.engine import make_url
 
-from vf_api.settings import Settings
+from vf_api.settings import APISettings, Settings
 
 
 class SettingsTest(unittest.TestCase):
@@ -32,8 +32,29 @@ class SettingsTest(unittest.TestCase):
             [
                 sys.executable,
                 "-c",
-                "import sys; import vf_api.models; import vf_api.database; "
+                "import sys; import vf_api.models; import vf_api.database; import vf_api.main; "
                 "assert not {'torch', 'timm', 'ultralytics'} & set(sys.modules)",
             ],
             check=True,
         )
+
+    def test_api_requires_private_key_and_bounded_lifetimes(self):
+        settings = APISettings(
+            _env_file=None, postgres_password="example", jwt_secret="k" * 64
+        )
+        self.assertNotIn("k" * 64, repr(settings))
+        for values in (
+            {"jwt_secret": ""},
+            {"jwt_secret": "short"},
+            {"access_token_minutes": 0},
+            {"refresh_token_days": 31},
+        ):
+            with self.assertRaises(ValidationError):
+                APISettings(
+                    _env_file=None,
+                    **{
+                        "postgres_password": "example",
+                        "jwt_secret": "k" * 64,
+                        **values,
+                    },
+                )
