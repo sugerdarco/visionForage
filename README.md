@@ -20,7 +20,8 @@ setup is available in [the local services guide](docs/LOCAL.md). The 11-table
 stable model indices. [Direct MinIO uploads and local CPU thumbnails](docs/UPLOADS.md)
 now connect images to projects. [Annotation endpoints](docs/ANNOTATIONS.md) save
 classification labels and detection boxes with ownership checks and atomic
-replacement. Dataset imports and version creation come next.
+replacement. [Dataset imports](docs/IMPORTS.md) now load ImageFolder, YOLO and
+COCO ZIPs through private storage. Frozen dataset versions come next.
 
 ## Development setup
 

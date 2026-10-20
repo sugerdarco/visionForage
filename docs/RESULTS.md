@@ -361,7 +361,8 @@ depends on the pinned software, hardware, worker count and source revisions.
 - [x] Presigned uploads, verified completion, project-scoped deduplication and private gallery reads.
 - [x] Local Celery CPU thumbnails with Redis delivery and periodic recovery of pending rows.
 - [x] Annotation reads and atomic saves with ownership checks, task-specific validation, retry-safe replacement and reviewed negative detection images; see [annotation API](ANNOTATIONS.md).
-- [ ] Next: dataset imports (ImageFolder, YOLO, COCO) and frozen dataset-version manifests.
+- [x] ImageFolder, YOLO and COCO ZIP imports with signed uploads, validated labels, stable class indices, conflict protection and CPU thumbnails; see [import API](IMPORTS.md).
+- [ ] Next: frozen dataset-version manifests.
 - [ ] Populated-project deletion with object-storage and job cleanup.
 - [ ] Later: active-learning comparison and notebook 03.
 

@@ -140,4 +140,5 @@ Validation for this milestone: all 42 API/database tests, 10 upload/worker
 integration tests and 110 ML/setup regression tests passed, together with lint.
 
 The existing schema and dependencies support this milestone; no migration or
-package update is needed. Dataset imports and version creation come next.
+package update is needed. [Dataset imports](IMPORTS.md) now populate the same
+image and label tables; frozen dataset versions come next.

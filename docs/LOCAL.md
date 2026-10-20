@@ -142,7 +142,8 @@ these storage behaviors.
 Project and class endpoints are available; see [PROJECTS.md](PROJECTS.md).
 Image upload and CPU thumbnail processing are available in [UPLOADS.md](UPLOADS.md).
 [Annotation reads and saves](ANNOTATIONS.md) use local PostgreSQL without a worker.
-Next: dataset imports and version creation.
+[Dataset imports](IMPORTS.md) use the same local API, storage and thumbnail worker.
+Next: frozen dataset versions.
 There is no `make up-gpu` or GPU Compose overlay: remote GPU workers will use the
 tested Python environment because the remote account has no Docker access.
 

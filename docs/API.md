@@ -114,3 +114,4 @@ Project and class endpoints now use the current-user dependency; see
 Image upload, gallery reads and thumbnail processing are now available; see
 [UPLOADS.md](UPLOADS.md). [Annotation reads and saves](ANNOTATIONS.md) now support
 classification labels, detection boxes and reviewed negative images.
+[Dataset imports](IMPORTS.md) add signed ZIP uploads for ImageFolder, YOLO and COCO.
