@@ -19,3 +19,5 @@ httpx2==2.15.1
 boto3==1.43.115
 pillow==12.3.0
 celery[redis]==5.6.3
+# Read YOLO class maps without loading training libraries or executing YAML tags.
+PyYAML==6.0.3

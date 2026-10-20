@@ -1,6 +1,8 @@
 """Small S3 boundary shared by the API and the CPU worker."""
 
 import base64
+import hashlib
+from typing import BinaryIO
 
 import boto3
 from botocore.config import Config
@@ -74,6 +76,29 @@ class ObjectStore:
             Body=data,
             ContentType=mime,
         )
+
+    def download(self, key: str, target: BinaryIO, size: int, sha256: str) -> None:
+        """Stream an archive into a private temporary file; verify the signed claim."""
+        result = self.client.get_object(Bucket=self.bucket, Key=key)
+        stream = result["Body"]
+        try:
+            if result["ContentLength"] != size:
+                raise ValueError("Uploaded archive size does not match the grant")
+            digest = hashlib.sha256()
+            received = 0
+            while chunk := stream.read(min(1024 * 1024, size - received + 1)):
+                received += len(chunk)
+                if received > size:
+                    raise ValueError("Uploaded archive exceeds the signed size")
+                target.write(chunk)
+                digest.update(chunk)
+            if received != size or digest.hexdigest() != sha256:
+                raise ValueError(
+                    "Uploaded archive size or SHA-256 does not match the grant"
+                )
+            target.seek(0)
+        finally:
+            stream.close()
 
     def delete(self, key: str) -> None:
         self.client.delete_object(Bucket=self.bucket, Key=key)
