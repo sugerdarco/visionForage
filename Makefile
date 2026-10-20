@@ -6,11 +6,14 @@ API_PYTHON ?= .venv/bin/python
 ALEMBIC = $(API_PYTHON) -m alembic -c services/api/alembic.ini
 .DEFAULT_GOAL := lint
 
-.PHONY: lint test env up down status check-infra api-env migrate db-current test-db
+.PHONY: lint test env up down status check-infra api-env api migrate db-current test-db
 
 api-env:
 	@test -x $(API_PYTHON) || $(UV) venv --python 3.11.16 .venv
 	$(UV) pip sync --python $(API_PYTHON) requirements/api.txt
+
+api:
+	PYTHONPATH=services/api $(API_PYTHON) -m uvicorn vf_api.main:create_app --factory --host 127.0.0.1 --port 8000
 
 migrate:
 	$(ALEMBIC) upgrade head

@@ -26,3 +26,10 @@ class Settings(BaseSettings):
             port=self.postgres_port,
             database=self.postgres_db,
         )
+
+
+class APISettings(Settings):
+    # Kept separate so database migrations do not require an authentication key.
+    jwt_secret: SecretStr = Field(min_length=64)
+    access_token_minutes: int = Field(default=15, ge=1, le=60)
+    refresh_token_days: int = Field(default=7, ge=1, le=30)
