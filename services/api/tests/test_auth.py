@@ -3,40 +3,24 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 import json
-import secrets
 from unittest.mock import patch
 from uuid import UUID, uuid4
 
 import bcrypt
-from database_fixture import DisposableDatabaseTest
-from fastapi.testclient import TestClient
+from api_fixture import APITest
 import jwt
 import sqlalchemy as sa
 from sqlalchemy.exc import OperationalError, ProgrammingError
 from sqlalchemy.orm import Session
 
 from vf_api.dependencies import get_session
-from vf_api.main import create_app
 from vf_api.models import User
-from vf_api.settings import APISettings, Settings
 
 PREFIX = "/api/v1/auth"
 PASSWORD = "a test password with spaces"
 
 
-class AuthenticationTest(DisposableDatabaseTest):
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.settings = APISettings(
-            **Settings().model_dump(),
-            jwt_secret=secrets.token_hex(32),
-        ).model_copy(update={"postgres_db": cls.name})
-        cls.app = create_app(cls.settings)
-        cls.client = TestClient(cls.app)
-        cls.client.__enter__()
-        cls.addClassCleanup(cls.client.__exit__, None, None, None)
-
+class AuthenticationTest(APITest):
     def setUp(self):
         self.email = f"owner-{uuid4().hex}@example.com"
 
