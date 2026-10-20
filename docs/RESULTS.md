@@ -362,7 +362,8 @@ depends on the pinned software, hardware, worker count and source revisions.
 - [x] Local Celery CPU thumbnails with Redis delivery and periodic recovery of pending rows.
 - [x] Annotation reads and atomic saves with ownership checks, task-specific validation, retry-safe replacement and reviewed negative detection images; see [annotation API](ANNOTATIONS.md).
 - [x] ImageFolder, YOLO and COCO ZIP imports with signed uploads, validated labels, stable class indices, conflict protection and CPU thumbnails; see [import API](IMPORTS.md).
-- [ ] Next: frozen dataset-version manifests.
+- [x] Frozen dataset versions with deterministic pixel-group splits, immutable private manifests, checksum audit files and owner-scoped create/list/read endpoints; see [dataset versions](DATASET_VERSIONS.md).
+- [ ] Next: training-job APIs and remote GPU worker integration, followed by live SSE progress.
 - [ ] Populated-project deletion with object-storage and job cleanup.
 - [ ] Later: active-learning comparison and notebook 03.
 

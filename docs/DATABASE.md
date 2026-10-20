@@ -20,7 +20,9 @@ metric records, but training still reads a frozen manifest rather than querying
 live image and annotation tables. [Account HTTP routes](API.md) and
 [project/class routes](PROJECTS.md) are implemented. [Uploads and CPU thumbnails](UPLOADS.md)
 now use image rows; [annotation saves](ANNOTATIONS.md) atomically replace labels
-and update image status. Dataset versions and GPU worker integration come next.
+and update image status. [Dataset versions](DATASET_VERSIONS.md) now store frozen
+manifest keys, split settings and checksum/count metadata. GPU worker integration
+comes next.
 
 ## Setup and migration
 
@@ -83,8 +85,8 @@ psycopg. Null boxes are supported for classification. Confidence values must be
 between zero and one; epoch metrics and latency reject non-finite numbers.
 
 Dataset-version rows reject UPDATE statements: changes require a new version.
-This does not itself prevent overwriting a manifest object in MinIO; the future
-version-creation service must preserve that object too. Foreign keys do not
+The version-creation service also uses conditional create-only MinIO writes and
+a unique artifact directory per attempt; it never overwrites an existing manifest. Foreign keys do not
 cascade-delete history, so project removal will need an explicit cleanup workflow.
 
 This schema is not an authorization layer. Project routes enforce ownership and

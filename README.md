@@ -21,7 +21,9 @@ stable model indices. [Direct MinIO uploads and local CPU thumbnails](docs/UPLOA
 now connect images to projects. [Annotation endpoints](docs/ANNOTATIONS.md) save
 classification labels and detection boxes with ownership checks and atomic
 replacement. [Dataset imports](docs/IMPORTS.md) now load ImageFolder, YOLO and
-COCO ZIPs through private storage. Frozen dataset versions come next.
+COCO ZIPs through private storage. [Frozen dataset versions](docs/DATASET_VERSIONS.md)
+now preserve labels, class maps, deterministic splits and checksummed audit files.
+Training-job APIs and remote GPU worker integration come next.
 
 ## Development setup
 

@@ -115,3 +115,6 @@ Image upload, gallery reads and thumbnail processing are now available; see
 [UPLOADS.md](UPLOADS.md). [Annotation reads and saves](ANNOTATIONS.md) now support
 classification labels, detection boxes and reviewed negative images.
 [Dataset imports](IMPORTS.md) add signed ZIP uploads for ImageFolder, YOLO and COCO.
+
+[Frozen dataset versions](DATASET_VERSIONS.md) now provide owner-scoped creation,
+paginated listing and detail reads with short-lived manifest/audit URLs.

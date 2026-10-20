@@ -75,7 +75,7 @@ mark the empty result as labeled:
 {"annotations": [], "status": "labeled"}
 ```
 
-That distinction lets future version creation include reviewed negative images
+That distinction lets [version creation](DATASET_VERSIONS.md) include reviewed negative images
 while excluding images nobody has labeled. Classification requires a class even
 for an acceptable image, so this empty labeled form is rejected there.
 `status: "unlabeled"` is accepted only with an empty list. The save endpoint
@@ -141,4 +141,5 @@ integration tests and 110 ML/setup regression tests passed, together with lint.
 
 The existing schema and dependencies support this milestone; no migration or
 package update is needed. [Dataset imports](IMPORTS.md) now populate the same
-image and label tables; frozen dataset versions come next.
+image and label tables. [Frozen dataset versions](DATASET_VERSIONS.md) now copy
+these labels into immutable training manifests.

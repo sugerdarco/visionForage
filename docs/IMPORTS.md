@@ -9,8 +9,8 @@ used by the importer.
 
 This is a bounded, synchronous import. It keeps error reporting and retries
 simple while the application is small. Imports larger than the limits below
-will need a background-job workflow. Dataset-version creation is the next step:
-training will consume a frozen manifest, not the imported live annotation rows.
+will need a background-job workflow. [Dataset-version creation](DATASET_VERSIONS.md)
+now freezes these images and labels into the manifest that training will consume.
 
 ## Upload and complete
 
@@ -156,8 +156,8 @@ current training contract cannot represent their evaluation rules. Segmentation,
 area and other metadata are not imported; a valid detection box is required.
 
 All formats pool the selected images into the live project. **Source train/val/test
-assignments are not retained.** Dataset-version creation will choose and freeze
-splits. This endpoint does not recreate a benchmark's official split.
+assignments are not retained.** [Dataset-version creation](DATASET_VERSIONS.md) chooses
+and freezes splits. This endpoint does not recreate a benchmark's official split.
 
 ## Duplicates, labels and class indices
 
