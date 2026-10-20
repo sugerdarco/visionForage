@@ -159,6 +159,7 @@ class DetectionEvaluationTest(unittest.TestCase):
         code = """
 import hashlib, json, sys
 from pathlib import Path
+from unittest.mock import patch
 import torch
 from ultralytics.nn.tasks import DetectionModel
 from vf_ml.detection_evaluation import evaluate_detector
@@ -170,7 +171,10 @@ torch.save({'model': model, 'train_args': {'task': 'detect'}}, root / 'best.pt')
 run = json.loads((root / 'run.json').read_text())
 run['checkpoint_sha256'] = hashlib.sha256((root / 'best.pt').read_bytes()).hexdigest()
 (root / 'run.json').write_text(json.dumps(run))
-evaluate_detector(root / 'best.pt', root / 'manifest.json', root, root / 'report.json', batch_size=2)
+# The pinned validator checks/downloads fonts even with plots=False.
+# This headless test exercises real inference, not optional plotting assets.
+with patch('ultralytics.data.utils.check_font', return_value=None):
+    evaluate_detector(root / 'best.pt', root / 'manifest.json', root, root / 'report.json', batch_size=2)
 """
         result = subprocess.run(
             [sys.executable, "-c", code, str(self.root)],
