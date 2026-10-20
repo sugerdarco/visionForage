@@ -356,7 +356,8 @@ depends on the pinned software, hardware, worker count and source revisions.
 - [x] Baseline milestone complete under the documented plan amendment.
 - [x] Local PostgreSQL, MinIO and Redis services with Docker Compose; see [setup and checks](LOCAL.md).
 - [x] SQLAlchemy models and the first Alembic migration for all 11 application tables.
-- [ ] Next: FastAPI HTTP service and authentication.
+- [x] FastAPI registration, login, token refresh and current-user endpoint; see [API setup](API.md).
+- [ ] Next: project and class endpoints with ownership checks.
 - [ ] Later: active-learning comparison and notebook 03.
 
 Remote account names and filesystem paths in published examples and the detector

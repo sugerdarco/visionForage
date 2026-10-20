@@ -12,8 +12,8 @@ plan's assumption that the whole stack runs on the GPU server.
 | Redis 7 | Future Celery queue and live job events | Fits the planned Celery worker and event stream. PostgreSQL remains the durable source of job status. |
 
 The storage and queue services have health checks and private buckets. The first
-database migration is available in [DATABASE.md](DATABASE.md); HTTP endpoints
-and workers are not implemented yet.
+database migration is available in [DATABASE.md](DATABASE.md). The local FastAPI
+account service is described in [API.md](API.md); workers are not implemented yet.
 
 ## One-time setup
 
@@ -52,7 +52,7 @@ pinned Alpine base, verifies their checksums and runs as UID 1000. All binaries
 and build caches stay outside Git. PostgreSQL and Redis use official images,
 pinned by version and image digest in `infra/compose.yml`.
 
-`make env` creates random independent passwords in `.env`, mode 0600, and never
+`make env` creates random independent passwords and an API signing key in `.env`, mode 0600, and never
 overwrites an existing file. `.env.example` contains names and nonsecret defaults.
 Keep `.env` private; `docker compose config` without `--quiet` expands its secrets.
 The credentials are for this local development stack. PostgreSQL's initial user
@@ -82,7 +82,7 @@ The future flow is: browser → API → PostgreSQL for records; browser → MinI
 presigned URLs for file bytes; API → Redis → remote Celery worker for training.
 The worker downloads the frozen manifest and images from MinIO, calls `vf_ml`,
 uploads artifacts, writes metrics to PostgreSQL and publishes Redis events.
-The API will not import PyTorch. Browser-facing presigned URLs must use the host
+The API does not import PyTorch. Browser-facing presigned URLs must use the host
 endpoint, because browsers cannot resolve the Compose name `minio`.
 
 Remote integration will use reverse SSH forwarding, initiated **from the laptop**:
@@ -137,7 +137,7 @@ workers will need retry-safe tasks and durable job status in PostgreSQL.
 and [PostgreSQL image initialization](https://hub.docker.com/_/postgres) describe
 these storage behaviors.
 
-Next: the FastAPI HTTP service and authentication, using the database schema.
+Next: project and class HTTP endpoints with ownership checks.
 There is no `make up-gpu` or GPU Compose overlay: remote GPU workers will use the
 tested Python environment because the remote account has no Docker access.
 

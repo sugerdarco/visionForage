@@ -14,8 +14,9 @@ its ONNX parity check passes with the approved **0.002-pixel box tolerance**. Se
 [notebook 02](notebooks/02_neu_detection_baseline.ipynb). Both model quality
 targets and the amended export gates pass. Local PostgreSQL, Redis and MinIO
 setup is available in [the local services guide](docs/LOCAL.md). The 11-table
-[database schema and first migration](docs/DATABASE.md) are ready; HTTP endpoints
-and authentication come next.
+[database schema and first migration](docs/DATABASE.md) are ready, along with
+[FastAPI registration, login and token refresh](docs/API.md). Project and class
+endpoints come next.
 
 ## Development setup
 
