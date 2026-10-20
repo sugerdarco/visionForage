@@ -6,3 +6,12 @@ alembic==1.20.0
 psycopg[binary]==3.3.6
 # Environment / .env configuration with secret-safe representations.
 pydantic-settings==2.16.0
+# JSON HTTP service and its local ASGI server.
+fastapi==0.151.0
+uvicorn==0.54.0
+# Password hashing, signed tokens and email validation.
+bcrypt==5.0.0
+PyJWT==2.15.1
+email-validator==2.3.0
+# HTTP client used by the API integration tests.
+httpx2==2.15.1
