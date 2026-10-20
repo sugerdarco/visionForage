@@ -7,7 +7,7 @@ from fastapi import Depends, Request
 
 from vf_api.queueing import make_queue
 from vf_api.settings import StorageSettings
-from vf_api.storage import ObjectStore
+from vf_api.storage import DatasetStore, ObjectStore
 
 
 def get_store(request: Request) -> ObjectStore:
@@ -24,5 +24,13 @@ def get_queue(request: Request) -> Celery:
     return request.app.state.queue
 
 
+def get_datasets(request: Request) -> DatasetStore:
+    with request.app.state.resource_lock:
+        if not hasattr(request.app.state, "datasets"):
+            request.app.state.datasets = DatasetStore(StorageSettings())
+    return request.app.state.datasets
+
+
 Storage = Annotated[ObjectStore, Depends(get_store)]
 Queue = Annotated[Celery, Depends(get_queue)]
+Datasets = Annotated[DatasetStore, Depends(get_datasets)]

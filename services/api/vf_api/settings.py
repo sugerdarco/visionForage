@@ -50,6 +50,7 @@ class StorageSettings(EnvironmentSettings):
     s3_public_endpoint_url: AnyHttpUrl | None = None
     s3_region: str = "us-east-1"
     s3_images_bucket: str = "vf-images"
+    s3_datasets_bucket: str = "vf-datasets"
 
     @property
     def endpoint(self) -> str:

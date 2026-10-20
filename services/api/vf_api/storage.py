@@ -56,15 +56,15 @@ class ObjectStore:
         )
         return url, {"Content-Type": mime, "x-amz-checksum-sha256": checksum}
 
-    def read(self, key: str) -> bytes:
+    def read(self, key: str, *, max_bytes: int = MAX_UPLOAD_BYTES) -> bytes:
         result = self.client.get_object(Bucket=self.bucket, Key=key)
         stream = result["Body"]
         try:
-            if result["ContentLength"] > MAX_UPLOAD_BYTES:
-                raise ValueError("Image exceeds the 20 MiB limit")
-            data = stream.read(MAX_UPLOAD_BYTES + 1)
-            if len(data) > MAX_UPLOAD_BYTES:
-                raise ValueError("Image exceeds the 20 MiB limit")
+            if result["ContentLength"] > max_bytes:
+                raise ValueError("Object exceeds the configured read limit")
+            data = stream.read(max_bytes + 1)
+            if len(data) > max_bytes:
+                raise ValueError("Object exceeds the configured read limit")
             return data
         finally:
             stream.close()
@@ -135,6 +135,26 @@ class ObjectStore:
         self.client.put_bucket_lifecycle_configuration(
             Bucket=self.bucket,
             LifecycleConfiguration={"Rules": rules},
+        )
+
+
+class DatasetStore(ObjectStore):
+    """Separate private bucket and create-only writes for frozen JSON artifacts."""
+
+    def __init__(self, settings: StorageSettings):
+        super().__init__(settings)
+        self.bucket = settings.s3_datasets_bucket
+
+    def put_once(self, key: str, data: bytes) -> None:
+        self.client.put_object(
+            Bucket=self.bucket,
+            Key=key,
+            Body=data,
+            ContentType="application/json",
+            IfNoneMatch="*",
+            ChecksumSHA256=base64.b64encode(hashlib.sha256(data).digest()).decode(
+                "ascii"
+            ),
         )
 
 
