@@ -1,0 +1,123 @@
+"""Atomic, owner-scoped replacement of an image's live labels."""
+
+from uuid import UUID
+
+from fastapi import APIRouter, HTTPException
+from sqlalchemy import delete, select
+
+from vf_api.annotation_schemas import (
+    AnnotationResponse,
+    AnnotationSave,
+    ImageAnnotations,
+)
+from vf_api.dependencies import CurrentUser, Database
+from vf_api.models import Annotation, Class, Image, Project
+
+router = APIRouter(prefix="/images", tags=["annotations"])
+
+
+@router.get("/{image_id}/annotations", response_model=ImageAnnotations)
+def read_annotations(
+    image_id: UUID, session: Database, user: CurrentUser
+) -> ImageAnnotations:
+    # One statement gives a consistent image status and label snapshot during saves.
+    rows = session.execute(
+        select(Image, Annotation)
+        .join(Project, Project.id == Image.project_id)
+        .outerjoin(Annotation, Annotation.image_id == Image.id)
+        .where(Image.id == image_id, Project.owner_id == user.id)
+        .order_by(Annotation.id)
+    ).all()
+    if not rows:
+        raise HTTPException(status_code=404, detail="Image not found")
+    return ImageAnnotations(
+        image_id=image_id,
+        status=rows[0][0].status,
+        annotations=[row for _, row in rows if row is not None],
+    )
+
+
+@router.put("/{image_id}/annotations", response_model=ImageAnnotations)
+def save_annotations(
+    image_id: UUID, body: AnnotationSave, session: Database, user: CurrentUser
+) -> ImageAnnotations:
+    result = session.execute(
+        select(Image, Project.task_type)
+        .join(Project, Project.id == Image.project_id)
+        .where(Image.id == image_id, Project.owner_id == user.id)
+        .with_for_update(of=Image)
+    ).one_or_none()
+    if result is None:
+        raise HTTPException(status_code=404, detail="Image not found")
+    image, task = result
+    if task not in ("classification", "detection"):
+        raise HTTPException(status_code=422, detail="Task does not support labeling")
+
+    status = body.status or ("labeled" if body.annotations else "unlabeled")
+    if status == "unlabeled" and body.annotations:
+        raise HTTPException(
+            status_code=422, detail="Unlabeled images cannot contain annotations"
+        )
+    if task == "classification":
+        if status == "labeled" and len(body.annotations) != 1:
+            raise HTTPException(
+                status_code=422, detail="Classification requires exactly one class"
+            )
+        if any(row.bbox is not None for row in body.annotations):
+            raise HTTPException(
+                status_code=422, detail="Classification labels cannot contain boxes"
+            )
+    elif any(row.bbox is None for row in body.annotations):
+        raise HTTPException(
+            status_code=422, detail="Detection labels require bounding boxes"
+        )
+
+    requested_ids = {row.class_id for row in body.annotations}
+    valid_ids = set(
+        session.scalars(
+            select(Class.id).where(
+                Class.project_id == image.project_id, Class.id.in_(requested_ids)
+            )
+        )
+    )
+    if requested_ids != valid_ids:
+        raise HTTPException(
+            status_code=422, detail="Every class must belong to the image's project"
+        )
+
+    existing = list(
+        session.scalars(select(Annotation).where(Annotation.image_id == image.id))
+    )
+
+    def label_key(row):
+        return str(row.class_id), tuple(row.bbox or ())
+
+    unchanged = all(
+        row.source == "human" and row.confidence is None for row in existing
+    ) and sorted(map(label_key, existing)) == sorted(map(label_key, body.annotations))
+    if not unchanged:
+        session.execute(delete(Annotation).where(Annotation.image_id == image.id))
+        existing = [
+            Annotation(
+                image_id=image.id,
+                class_id=row.class_id,
+                bbox=list(row.bbox) if row.bbox is not None else None,
+                source="human",
+                confidence=None,
+            )
+            for row in body.annotations
+        ]
+        session.add_all(existing)
+    image.status = status
+    session.flush()
+    # Materialize under the lock; another save can begin as soon as we commit.
+    response = ImageAnnotations(
+        image_id=image.id,
+        status=image.status,
+        annotations=[
+            AnnotationResponse.model_validate(row)
+            for row in sorted(existing, key=lambda row: row.id)
+        ],
+    )
+    session.commit()
+    return response
