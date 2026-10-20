@@ -19,6 +19,7 @@ from vf_api.routers.imports import router as imports_router
 from vf_api.routers.auth import router as auth_router
 from vf_api.routers.projects import router as projects_router
 from vf_api.routers.uploads import router as uploads_router
+from vf_api.routers.versions import router as versions_router
 from vf_api.security import hash_password
 from vf_api.settings import APISettings
 
@@ -36,7 +37,7 @@ def create_app(settings: APISettings | None = None) -> FastAPI:
             app.state.dummy_password_hash = hash_password(secrets.token_hex(24))
             yield
         finally:
-            for name in ("store", "queue"):
+            for name in ("store", "queue", "datasets"):
                 resource = getattr(app.state, name, None)
                 if resource is not None:
                     resource.close()
@@ -54,6 +55,7 @@ def create_app(settings: APISettings | None = None) -> FastAPI:
     app.include_router(uploads_router, prefix="/api/v1")
     app.include_router(annotations_router, prefix="/api/v1")
     app.include_router(imports_router, prefix="/api/v1")
+    app.include_router(versions_router, prefix="/api/v1")
 
     @app.middleware("http")
     async def private_api_responses(request: Request, call_next):
