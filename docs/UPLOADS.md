@@ -149,8 +149,8 @@ explains the worker/scheduler split.
 `total`, newest first with UUID as a tie-breaker. Optional filters are
 `status=unlabeled|labeled|in_review` and `class=<class UUID>`. Page size is 1–100.
 Every item includes private original/thumbnail URLs; another owner's image or
-project returns 404. Class filtering uses existing annotation records; saving
-annotations through HTTP is the next step.
+project returns 404. Class filtering uses the current annotation records;
+[annotation reads and saves](ANNOTATIONS.md) now update those records through HTTP.
 
 ## Tests
 

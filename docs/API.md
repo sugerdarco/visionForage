@@ -112,4 +112,5 @@ ML/setup tests pass, together with lint. A real Uvicorn process also returned
 Project and class endpoints now use the current-user dependency; see
 [PROJECTS.md](PROJECTS.md) for their request formats and ownership rules.
 Image upload, gallery reads and thumbnail processing are now available; see
-[UPLOADS.md](UPLOADS.md). Annotation-save endpoints come next.
+[UPLOADS.md](UPLOADS.md). [Annotation reads and saves](ANNOTATIONS.md) now support
+classification labels, detection boxes and reviewed negative images.

@@ -19,7 +19,8 @@ commits account/project/class/image transactions. Workers will use the same job 
 metric records, but training still reads a frozen manifest rather than querying
 live image and annotation tables. [Account HTTP routes](API.md) and
 [project/class routes](PROJECTS.md) are implemented. [Uploads and CPU thumbnails](UPLOADS.md)
-now use image rows; annotation saves and GPU worker integration come next.
+now use image rows; [annotation saves](ANNOTATIONS.md) atomically replace labels
+and update image status. Dataset versions and GPU worker integration come next.
 
 ## Setup and migration
 
@@ -87,8 +88,9 @@ version-creation service must preserve that object too. Foreign keys do not
 cascade-delete history, so project removal will need an explicit cleanup workflow.
 
 This schema is not an authorization layer. Project routes enforce ownership and
-assign append-only class indices. Upcoming API routes must enforce same-project
-image/class pairing, task-specific annotation rules, allowed job transitions and successful-job
+assign append-only class indices. Annotation routes enforce same-project
+image/class pairing and task-specific label rules. Upcoming API routes must
+enforce allowed job transitions and successful-job
 requirements for model registration. The `anomaly` task value is reserved by the
 plan; no anomaly training feature is implemented.
 

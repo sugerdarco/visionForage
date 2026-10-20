@@ -18,7 +18,9 @@ setup is available in [the local services guide](docs/LOCAL.md). The 11-table
 [FastAPI registration, login and token refresh](docs/API.md).
 [Project and class endpoints](docs/PROJECTS.md) now enforce ownership and assign
 stable model indices. [Direct MinIO uploads and local CPU thumbnails](docs/UPLOADS.md)
-now connect images to projects. Annotation-save endpoints come next.
+now connect images to projects. [Annotation endpoints](docs/ANNOTATIONS.md) save
+classification labels and detection boxes with ownership checks and atomic
+replacement. Dataset imports and version creation come next.
 
 ## Development setup
 

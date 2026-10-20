@@ -98,4 +98,5 @@ Verified on 2026-10-20: all 31 API/database/configuration tests and 110 ML/setup
 tests pass, along with lint.
 
 Presigned uploads, upload completion, gallery reads and thumbnail processing are
-now implemented in [UPLOADS.md](UPLOADS.md). Next: saving image annotations.
+now implemented in [UPLOADS.md](UPLOADS.md). [Annotation saves](ANNOTATIONS.md)
+validate image/class project membership and preserve the class indices.
