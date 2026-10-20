@@ -12,6 +12,7 @@ from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from vf_api.database import make_engine, make_session_factory
 from vf_api.dependencies import Database
 from vf_api.routers.auth import router as auth_router
+from vf_api.routers.projects import router as projects_router
 from vf_api.security import hash_password
 from vf_api.settings import APISettings
 
@@ -32,11 +33,12 @@ def create_app(settings: APISettings | None = None) -> FastAPI:
 
     app = FastAPI(title="VisionForge API", version="0.1.0", lifespan=lifespan)
     app.include_router(auth_router, prefix="/api/v1")
+    app.include_router(projects_router, prefix="/api/v1")
 
     @app.middleware("http")
-    async def private_auth_responses(request: Request, call_next):
+    async def private_api_responses(request: Request, call_next):
         response = await call_next(request)
-        if request.url.path.startswith("/api/v1/auth/"):
+        if request.url.path.startswith("/api/v1/"):
             response.headers["Cache-Control"] = "no-store"
             response.headers["Pragma"] = "no-cache"
         return response
