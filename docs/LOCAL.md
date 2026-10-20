@@ -137,7 +137,8 @@ workers will need retry-safe tasks and durable job status in PostgreSQL.
 and [PostgreSQL image initialization](https://hub.docker.com/_/postgres) describe
 these storage behaviors.
 
-Next: project and class HTTP endpoints with ownership checks.
+Project and class endpoints are available; see [PROJECTS.md](PROJECTS.md).
+Next: image upload and thumbnail processing.
 There is no `make up-gpu` or GPU Compose overlay: remote GPU workers will use the
 tested Python environment because the remote account has no Docker access.
 

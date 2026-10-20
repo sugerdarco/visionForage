@@ -15,8 +15,9 @@ its ONNX parity check passes with the approved **0.002-pixel box tolerance**. Se
 targets and the amended export gates pass. Local PostgreSQL, Redis and MinIO
 setup is available in [the local services guide](docs/LOCAL.md). The 11-table
 [database schema and first migration](docs/DATABASE.md) are ready, along with
-[FastAPI registration, login and token refresh](docs/API.md). Project and class
-endpoints come next.
+[FastAPI registration, login and token refresh](docs/API.md).
+[Project and class endpoints](docs/PROJECTS.md) now enforce ownership and assign
+stable model indices. Image upload endpoints come next.
 
 ## Development setup
 

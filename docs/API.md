@@ -3,7 +3,7 @@
 FastAPI now provides the first HTTP layer over the PostgreSQL schema. Registration
 stores a bcrypt password hash; login verifies that hash and signs access and
 refresh tokens. Protected requests verify the access token and load its user
-from PostgreSQL. The resulting user ID will scope projects and their data.
+from PostgreSQL. The resulting user ID scopes [projects and their classes](PROJECTS.md).
 
 This step runs Uvicorn in the local API environment and PostgreSQL in Docker.
 It needs no GPU, sudo, or remote connection. Redis and MinIO are already running
@@ -109,5 +109,6 @@ Verified on 2026-10-20: 21 API/database/configuration tests and 110 existing
 ML/setup tests pass, together with lint. A real Uvicorn process also returned
 200 for `/healthz`, `/readyz`, `/docs` and `/openapi.json` against local PostgreSQL.
 
-Next: project and class endpoints with ownership checks using the current-user
-dependency.
+Project and class endpoints now use the current-user dependency; see
+[PROJECTS.md](PROJECTS.md) for their request formats and ownership rules.
+Next: image upload and thumbnail processing.

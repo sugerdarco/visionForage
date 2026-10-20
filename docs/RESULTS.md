@@ -357,7 +357,9 @@ depends on the pinned software, hardware, worker count and source revisions.
 - [x] Local PostgreSQL, MinIO and Redis services with Docker Compose; see [setup and checks](LOCAL.md).
 - [x] SQLAlchemy models and the first Alembic migration for all 11 application tables.
 - [x] FastAPI registration, login, token refresh and current-user endpoint; see [API setup](API.md).
-- [ ] Next: project and class endpoints with ownership checks.
+- [x] Project creation/list/read/rename, empty-project deletion and class batches with ownership checks and stable indices.
+- [ ] Next: presigned image upload, upload completion and thumbnails.
+- [ ] Populated-project deletion with object-storage and job cleanup.
 - [ ] Later: active-learning comparison and notebook 03.
 
 Remote account names and filesystem paths in published examples and the detector

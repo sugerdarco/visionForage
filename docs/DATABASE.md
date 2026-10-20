@@ -14,11 +14,11 @@ database rows store their object keys.
 | `models`, `deployments` | A job produces a versioned model; deployments reference that model. |
 | `predictions` | Each logged result references a deployment and its stored input image. |
 
-The API opens a session for a unit of work and commits registration transactions.
-Project routes will validate ownership and business rules. Workers will use the same job and
+The API opens a session for a unit of work, validates project ownership and
+commits account/project/class transactions. Workers will use the same job and
 metric records, but training still reads a frozen manifest rather than querying
-live image and annotation tables. [Account HTTP routes](API.md) are implemented;
-project routes and worker integration come next.
+live image and annotation tables. [Account HTTP routes](API.md) and
+[project/class routes](PROJECTS.md) are implemented; uploads and worker integration come next.
 
 ## Setup and migration
 
@@ -85,9 +85,9 @@ This does not itself prevent overwriting a manifest object in MinIO; the future
 version-creation service must preserve that object too. Foreign keys do not
 cascade-delete history, so project removal will need an explicit cleanup workflow.
 
-This schema is not an authorization layer. Upcoming API routes must enforce user
-ownership, same-project image/class pairing, task-specific annotation rules,
-class-index freezing after training, allowed job transitions and successful-job
+This schema is not an authorization layer. Project routes enforce ownership and
+assign append-only class indices. Upcoming API routes must enforce same-project
+image/class pairing, task-specific annotation rules, allowed job transitions and successful-job
 requirements for model registration. The `anomaly` task value is reserved by the
 plan; no anomaly training feature is implemented.
 
