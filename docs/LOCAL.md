@@ -13,7 +13,8 @@ plan's assumption that the whole stack runs on the GPU server.
 
 The storage and queue services have health checks and private buckets. The first
 database migration is available in [DATABASE.md](DATABASE.md). The local FastAPI
-account service is described in [API.md](API.md); workers are not implemented yet.
+account service is described in [API.md](API.md). [UPLOADS.md](UPLOADS.md) adds
+the local CPU thumbnail worker; GPU training worker integration is still pending.
 
 ## One-time setup
 
@@ -78,10 +79,11 @@ Change the host port variables in `.env` if another local service uses a port.
 Container ports remain fixed. Every published port binds **127.0.0.1**, not the
 LAN; services communicate through Compose's project network.
 
-The future flow is: browser → API → PostgreSQL for records; browser → MinIO via
-presigned URLs for file bytes; API → Redis → remote Celery worker for training.
-The worker downloads the frozen manifest and images from MinIO, calls `vf_ml`,
-uploads artifacts, writes metrics to PostgreSQL and publishes Redis events.
+The current flow is: browser → API → PostgreSQL for records; browser → MinIO via
+presigned URLs for file bytes; API → Redis → local CPU worker for thumbnails.
+The future remote training worker will download the frozen manifest and images
+from MinIO, call `vf_ml`, upload artifacts, write metrics to PostgreSQL and publish
+Redis events.
 The API does not import PyTorch. Browser-facing presigned URLs must use the host
 endpoint, because browsers cannot resolve the Compose name `minio`.
 
@@ -138,7 +140,8 @@ and [PostgreSQL image initialization](https://hub.docker.com/_/postgres) describ
 these storage behaviors.
 
 Project and class endpoints are available; see [PROJECTS.md](PROJECTS.md).
-Next: image upload and thumbnail processing.
+Image upload and CPU thumbnail processing are available in [UPLOADS.md](UPLOADS.md).
+Next: annotation-save endpoints.
 There is no `make up-gpu` or GPU Compose overlay: remote GPU workers will use the
 tested Python environment because the remote account has no Docker access.
 

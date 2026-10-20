@@ -15,10 +15,11 @@ database rows store their object keys.
 | `predictions` | Each logged result references a deployment and its stored input image. |
 
 The API opens a session for a unit of work, validates project ownership and
-commits account/project/class transactions. Workers will use the same job and
+commits account/project/class/image transactions. Workers will use the same job and
 metric records, but training still reads a frozen manifest rather than querying
 live image and annotation tables. [Account HTTP routes](API.md) and
-[project/class routes](PROJECTS.md) are implemented; uploads and worker integration come next.
+[project/class routes](PROJECTS.md) are implemented. [Uploads and CPU thumbnails](UPLOADS.md)
+now use image rows; annotation saves and GPU worker integration come next.
 
 ## Setup and migration
 

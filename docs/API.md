@@ -6,8 +6,8 @@ refresh tokens. Protected requests verify the access token and load its user
 from PostgreSQL. The resulting user ID scopes [projects and their classes](PROJECTS.md).
 
 This step runs Uvicorn in the local API environment and PostgreSQL in Docker.
-It needs no GPU, sudo, or remote connection. Redis and MinIO are already running
-for later queue and upload work, but authentication does not use them.
+It needs no GPU, sudo, or remote connection. Redis and MinIO support uploads and
+thumbnail jobs; authentication uses only PostgreSQL.
 
 ## Run locally
 
@@ -111,4 +111,5 @@ ML/setup tests pass, together with lint. A real Uvicorn process also returned
 
 Project and class endpoints now use the current-user dependency; see
 [PROJECTS.md](PROJECTS.md) for their request formats and ownership rules.
-Next: image upload and thumbnail processing.
+Image upload, gallery reads and thumbnail processing are now available; see
+[UPLOADS.md](UPLOADS.md). Annotation-save endpoints come next.

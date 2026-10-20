@@ -358,7 +358,9 @@ depends on the pinned software, hardware, worker count and source revisions.
 - [x] SQLAlchemy models and the first Alembic migration for all 11 application tables.
 - [x] FastAPI registration, login, token refresh and current-user endpoint; see [API setup](API.md).
 - [x] Project creation/list/read/rename, empty-project deletion and class batches with ownership checks and stable indices.
-- [ ] Next: presigned image upload, upload completion and thumbnails.
+- [x] Presigned uploads, verified completion, project-scoped deduplication and private gallery reads.
+- [x] Local Celery CPU thumbnails with Redis delivery and periodic recovery of pending rows.
+- [ ] Next: annotation-save endpoints.
 - [ ] Populated-project deletion with object-storage and job cleanup.
 - [ ] Later: active-learning comparison and notebook 03.
 

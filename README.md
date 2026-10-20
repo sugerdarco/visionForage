@@ -17,7 +17,8 @@ setup is available in [the local services guide](docs/LOCAL.md). The 11-table
 [database schema and first migration](docs/DATABASE.md) are ready, along with
 [FastAPI registration, login and token refresh](docs/API.md).
 [Project and class endpoints](docs/PROJECTS.md) now enforce ownership and assign
-stable model indices. Image upload endpoints come next.
+stable model indices. [Direct MinIO uploads and local CPU thumbnails](docs/UPLOADS.md)
+now connect images to projects. Annotation-save endpoints come next.
 
 ## Development setup
 

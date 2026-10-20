@@ -97,4 +97,5 @@ trained class maps, deletion conflicts and OpenAPI security.
 Verified on 2026-10-20: all 31 API/database/configuration tests and 110 ML/setup
 tests pass, along with lint.
 
-Next: presigned image uploads, upload completion and thumbnail processing.
+Presigned uploads, upload completion, gallery reads and thumbnail processing are
+now implemented in [UPLOADS.md](UPLOADS.md). Next: saving image annotations.
