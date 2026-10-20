@@ -11,8 +11,9 @@ plan's assumption that the whole stack runs on the GPU server.
 | MinIO | Images, frozen manifests, weights and ONNX files | The S3 interface supports direct uploads and future S3 storage. Large binaries stay outside database rows. |
 | Redis 7 | Future Celery queue and live job events | Fits the planned Celery worker and event stream. PostgreSQL remains the durable source of job status. |
 
-The API, schema migrations and workers are **not implemented yet**. This step
-provides their storage and queue services, with health checks and private buckets.
+The storage and queue services have health checks and private buckets. The first
+database migration is available in [DATABASE.md](DATABASE.md); HTTP endpoints
+and workers are not implemented yet.
 
 ## One-time setup
 
@@ -136,7 +137,7 @@ workers will need retry-safe tasks and durable job status in PostgreSQL.
 and [PostgreSQL image initialization](https://hub.docker.com/_/postgres) describe
 these storage behaviors.
 
-Next: the FastAPI service, SQLAlchemy models and the first Alembic migration.
+Next: the FastAPI HTTP service and authentication, using the database schema.
 There is no `make up-gpu` or GPU Compose overlay: remote GPU workers will use the
 tested Python environment because the remote account has no Docker access.
 

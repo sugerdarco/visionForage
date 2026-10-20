@@ -2,9 +2,24 @@ PYTHON ?= python3
 UV ?= uv
 RUFF ?= $(UV) tool run --from ruff==0.14.1 ruff
 COMPOSE = docker compose --env-file .env -f infra/compose.yml
+API_PYTHON ?= .venv/bin/python
+ALEMBIC = $(API_PYTHON) -m alembic -c services/api/alembic.ini
 .DEFAULT_GOAL := lint
 
-.PHONY: lint test env up down status check-infra
+.PHONY: lint test env up down status check-infra api-env migrate db-current test-db
+
+api-env:
+	@test -x $(API_PYTHON) || $(UV) venv --python 3.11.16 .venv
+	$(UV) pip sync --python $(API_PYTHON) requirements/api.txt
+
+migrate:
+	$(ALEMBIC) upgrade head
+
+db-current:
+	$(ALEMBIC) current
+
+test-db:
+	PYTHONPATH=services/api $(API_PYTHON) -m unittest discover -s services/api/tests -v
 
 env:
 	$(PYTHON) scripts/setup_local_env.py
@@ -23,7 +38,7 @@ check-infra:
 	bash scripts/check_local_services.sh
 
 lint:
-	$(RUFF) check scripts tests packages
+	$(RUFF) check scripts tests packages services
 	@for script in scripts/*.sh; do bash -n "$$script" || exit; done
 
 test:

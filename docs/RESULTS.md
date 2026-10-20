@@ -355,7 +355,8 @@ depends on the pinned software, hardware, worker count and source revisions.
 - [x] Detector ONNX parity under the approved box tolerance, plus CPU latency.
 - [x] Baseline milestone complete under the documented plan amendment.
 - [x] Local PostgreSQL, MinIO and Redis services with Docker Compose; see [setup and checks](LOCAL.md).
-- [ ] Next: database schema, Alembic migrations and the FastAPI foundation.
+- [x] SQLAlchemy models and the first Alembic migration for all 11 application tables.
+- [ ] Next: FastAPI HTTP service and authentication.
 - [ ] Later: active-learning comparison and notebook 03.
 
 Remote account names and filesystem paths in published examples and the detector

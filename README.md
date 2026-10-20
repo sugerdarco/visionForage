@@ -13,7 +13,9 @@ reaches **0.7427 test mAP@0.5** and **0.4105 mAP@0.5:0.95**;
 its ONNX parity check passes with the approved **0.002-pixel box tolerance**. See
 [notebook 02](notebooks/02_neu_detection_baseline.ipynb). Both model quality
 targets and the amended export gates pass. Local PostgreSQL, Redis and MinIO
-setup is available in [the local services guide](docs/LOCAL.md); the API comes next.
+setup is available in [the local services guide](docs/LOCAL.md). The 11-table
+[database schema and first migration](docs/DATABASE.md) are ready; HTTP endpoints
+and authentication come next.
 
 ## Development setup
 
