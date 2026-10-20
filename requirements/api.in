@@ -1,0 +1,8 @@
+# Typed relational models without importing the ML package.
+sqlalchemy==2.0.55
+# Versioned, reversible PostgreSQL schema changes.
+alembic==1.20.0
+# PostgreSQL driver with bundled libpq; no system compiler is needed.
+psycopg[binary]==3.3.6
+# Environment / .env configuration with secret-safe representations.
+pydantic-settings==2.16.0
