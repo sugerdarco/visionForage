@@ -46,6 +46,7 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-visionforge}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Run make env first}
+      MINIO_API_CORS_ALLOW_ORIGIN: "http://localhost:3000,http://127.0.0.1:3000"
     ports:
       - "127.0.0.1:${MINIO_API_PORT:-9000}:9000"
       - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"
