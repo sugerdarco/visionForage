@@ -108,7 +108,7 @@ class DatabaseTest(DisposableDatabaseTest):
             self.assertEqual(compare_metadata(context, Base.metadata), [])
             self.assertEqual(
                 connection.scalar(sa.text("SELECT version_num FROM alembic_version")),
-                "0001",
+                "0002",
             )
 
     def test_complete_record_chain_and_server_defaults(self):

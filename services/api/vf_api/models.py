@@ -149,6 +149,12 @@ class DatasetVersion(Record, Base):
 class TrainingJob(MutableRecord, Base):
     __tablename__ = "training_jobs"
     __table_args__ = (
+        sa.Index(
+            "ix_training_jobs_pending_dispatch",
+            "created_at",
+            "id",
+            postgresql_where=sa.text("status = 'queued' AND dispatched_at IS NULL"),
+        ),
         sa.ForeignKeyConstraint(
             ["dataset_version_id", "project_id"],
             ["dataset_versions.id", "dataset_versions.project_id"],
@@ -176,6 +182,10 @@ class TrainingJob(MutableRecord, Base):
     status: Mapped[str] = mapped_column(sa.String(20), server_default="queued")
     gpu_id: Mapped[int | None] = mapped_column(sa.Integer)
     celery_task_id: Mapped[str | None] = mapped_column(sa.String(255), unique=True)
+    dispatched_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
+    cancel_requested_at: Mapped[datetime | None] = mapped_column(
+        sa.DateTime(timezone=True)
+    )
     started_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
     error: Mapped[str | None] = mapped_column(sa.Text)
