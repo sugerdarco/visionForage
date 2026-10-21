@@ -19,6 +19,7 @@ from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 
 from vf_api.job_schemas import JobCreate
+from vf_api.job_events import epoch_metrics
 from vf_api.models import DatasetVersion, Model, Project, TrainingJob, TrainingMetric
 from vf_worker.frozen_data import materialize
 from vf_worker.leases import Heartbeat, LeaseLost, owned
@@ -80,7 +81,7 @@ def check_active(sessions, identifier, token):
             raise Cancelled()
 
 
-def record_history(sessions, identifier, token, path, after):
+def record_history(sessions, identifier, token, path, after, *, events=None):
     if not path.exists():
         return after
     if path.stat().st_size > 32 * 1024**2:
@@ -139,6 +140,14 @@ def record_history(sessions, identifier, token, path, after):
                 insert(TrainingMetric)
                 .values(values)
                 .on_conflict_do_nothing(constraint="uq_training_metrics_epoch_value")
+            )
+    if values and events:
+        for epoch in sorted({row["epoch"] for row in values}):
+            events.publish(
+                "epoch",
+                identifier,
+                epoch=epoch,
+                metrics=epoch_metrics([row for row in values if row["epoch"] == epoch]),
             )
     return max([after] + [row["epoch"] for row in rows])
 
@@ -342,6 +351,8 @@ def finish_unsuccessful(sessions, identifier, token, error):
             )
             job.error = None if job.status == "cancelled" else error
             job.finished_at = session.scalar(select(func.clock_timestamp()))
+            return job.status
+    return None
 
 
 def run_job(
@@ -354,6 +365,7 @@ def run_job(
     artifacts,
     *,
     executor=execute,
+    events=None,
 ):
     identifier = UUID(str(identifier))
     # Avoid blocking a duplicate delivery behind a busy GPU.
@@ -369,6 +381,11 @@ def run_job(
         stage = "Dataset verification failed"
         try:
             with Heartbeat(sessions, identifier, job.claim_token) as heartbeat:
+                if events:
+                    events.publish(
+                        "status", identifier, status="running", gpu_id=job.gpu_id
+                    )
+                    events.log(identifier, "dataset")
                 request = TypeAdapter(JobCreate).validate_python(
                     dict(
                         dataset_version_id=version.id,
@@ -387,6 +404,8 @@ def run_job(
                         version, job.project_id, task, work, datasets, images, check
                     )
                     stage = "Training or export verification failed; inspect the private worker log"
+                    if events:
+                        events.log(identifier, "training")
                     epoch = 0
 
                     def progress():
@@ -397,6 +416,7 @@ def run_job(
                             job.claim_token,
                             work / "run/history.json",
                             epoch,
+                            events=events,
                         )
 
                     executor(
@@ -418,6 +438,8 @@ def run_job(
                         work, manifest, version.counts["manifest_sha256"]
                     )
                     stage = "Artifact publication failed"
+                    if events:
+                        events.log(identifier, "artifacts")
                     prefix = f"{job.project_id}/jobs/{identifier}/{uuid4()}"
                     index = {}
                     for name in (
@@ -436,7 +458,7 @@ def run_job(
                             f"{prefix}/{name}", work / name
                         )
                     check()
-                    return register(
+                    model_id = register(
                         sessions,
                         identifier,
                         job.claim_token,
@@ -450,8 +472,13 @@ def run_job(
                         index,
                         input_size,
                     )
+                    if events:
+                        events.publish(
+                            "done", identifier, status="succeeded", model_id=model_id
+                        )
+                    return model_id
         except (Cancelled, LeaseLost):
-            finish_unsuccessful(
+            final_status = finish_unsuccessful(
                 sessions,
                 identifier,
                 job.claim_token,
@@ -469,5 +496,9 @@ def run_job(
                     traceback.print_exc(file=log)
             except OSError:
                 pass  # Logging failure must not prevent recording a terminal job state.
-            finish_unsuccessful(sessions, identifier, job.claim_token, stage)
+            final_status = finish_unsuccessful(
+                sessions, identifier, job.claim_token, stage
+            )
+        if events and final_status:
+            events.publish("done", identifier, status=final_status, model_id=None)
         return None

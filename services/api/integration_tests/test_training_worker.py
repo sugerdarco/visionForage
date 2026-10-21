@@ -13,12 +13,14 @@ from unittest.mock import patch
 from uuid import UUID, uuid4
 
 from botocore.exceptions import ClientError
+from redis.exceptions import ConnectionError as RedisConnectionError
 from job_fixture import JobAPITest
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from test_dataset_snapshots import snapshot_fixture
 
 from vf_api.database import make_session_factory
+from vf_api.job_events import JobPublisher, channel
 from vf_api.dataset_snapshots import build_snapshot
 from vf_api.models import DatasetVersion, Model, Project, TrainingJob, TrainingMetric
 from vf_api.settings import StorageSettings
@@ -206,7 +208,7 @@ class TrainingWorkerTest(JobAPITest):
             task_id = session.get(TrainingJob, identifier).celery_task_id
         return identifier, task_id
 
-    def run_job(self, identifier, task_id, executor=fake_pipeline):
+    def run_job(self, identifier, task_id, executor=fake_pipeline, *, events=None):
         return run_job(
             identifier,
             task_id,
@@ -216,6 +218,7 @@ class TrainingWorkerTest(JobAPITest):
             self.images,
             self.artifacts,
             executor=executor,
+            events=events,
         )
 
     def models(self):
@@ -545,3 +548,61 @@ class TrainingWorkerTest(JobAPITest):
         self.assertLess(processes[0].returncode, 0)
         self.assertEqual(self.read(identifier).json()["error"], EXPIRED_ERROR)
         self.assertEqual(self.models(), [])
+
+    def test_public_events_follow_committed_metrics_and_registered_model(self):
+        identifier, task_id = self.submit()
+        publisher = JobPublisher()
+        self.addCleanup(publisher.close)
+        subscription = publisher.client.pubsub()
+        self.addCleanup(subscription.close)
+        subscription.subscribe(channel(identifier))
+        self.assertEqual(subscription.get_message(timeout=5)["type"], "subscribe")
+        original = publisher.publish
+        observed = []
+
+        def committed(kind, job_id, **payload):
+            with self.sessions() as session:
+                job = session.get(TrainingJob, job_id)
+                if kind == "epoch":
+                    self.assertIsNotNone(
+                        session.scalar(
+                            select(TrainingMetric.id).where(
+                                TrainingMetric.job_id == job_id,
+                                TrainingMetric.epoch == payload["epoch"],
+                            )
+                        )
+                    )
+                if kind == "done":
+                    self.assertEqual(job.status, "succeeded")
+                    model = session.scalar(select(Model).where(Model.job_id == job_id))
+                    self.assertEqual(str(model.id), payload["model_id"])
+            observed.append(kind)
+            return original(kind, job_id, **payload)
+
+        with patch.object(publisher, "publish", side_effect=committed):
+            self.assertIsNotNone(self.run_job(identifier, task_id, events=publisher))
+        delivered = [
+            json.loads(subscription.get_message(timeout=5)["data"]) for _ in observed
+        ]
+        self.assertEqual(
+            [row["type"] for row in delivered],
+            ["status", "log", "log", "epoch", "log", "done"],
+        )
+        self.assertTrue(
+            all(row["job_id"] == str(identifier) and row["ts"] for row in delivered)
+        )
+        self.assertEqual(delivered[3]["metrics"]["train_loss"], 1.0)
+
+    def test_broker_notification_failure_does_not_fail_training(self):
+        identifier, task_id = self.submit()
+        publisher = JobPublisher()
+        self.addCleanup(publisher.close)
+        with patch.object(
+            publisher.client,
+            "publish",
+            side_effect=RedisConnectionError("private broker details"),
+        ) as publish:
+            result = self.run_job(identifier, task_id, events=publisher)
+        self.assertIsNotNone(result)
+        self.assertEqual(self.read(identifier).json()["status"], "succeeded")
+        self.assertEqual(publish.call_count, 1)

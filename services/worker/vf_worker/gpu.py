@@ -1,6 +1,7 @@
 """A solo Celery supervisor; the selected Python subprocess owns CUDA."""
 
 from vf_api.database import make_engine, make_session_factory
+from vf_api.job_events import JobPublisher
 from vf_api.queueing import TRAIN_TASK, make_queue
 from vf_api.settings import Settings, StorageSettings
 from vf_api.storage import ArtifactStore, DatasetStore, ObjectStore
@@ -27,6 +28,7 @@ def create_gpu_worker(database=None, storage=None, queue=None, worker=None):
         )
         storage_settings = storage or StorageSettings()
         stores = []
+        events = JobPublisher(queue)
         try:
             for store_class in (DatasetStore, ObjectStore, ArtifactStore):
                 stores.append(store_class(storage_settings))
@@ -36,10 +38,12 @@ def create_gpu_worker(database=None, storage=None, queue=None, worker=None):
                 make_session_factory(engine),
                 configuration,
                 *stores,
+                events=events,
             )
         except WorkerBusy:
             raise self.retry(countdown=10) from None
         finally:
+            events.close()
             for store in stores:
                 store.close()
             engine.dispose()
