@@ -9,9 +9,9 @@ Submission, listing, metrics, cancellation and dispatch now connect to the
 [GPU consumer](GPU_WORKER.md), which verifies frozen data, runs training/evaluation/
 export, saves epoch metrics and registers successful models. Start that consumer
 to execute queued jobs; a dispatch timestamp does not mean training has begun.
-Stalled-job recovery and lost-message redelivery are implemented. Live SSE and
-registry browsing remain pending. Existing
-standalone ML scripts remain available for training.
+Stalled-job recovery and lost-message redelivery are implemented. [Live SSE](JOB_EVENTS.md)
+now provides status, epoch metrics and safe progress messages with reconnect
+support. Registry browsing remains pending. Standalone ML scripts remain available.
 
 ## Run locally
 
@@ -56,6 +56,7 @@ Foreign and missing records both return 404. Responses use `Cache-Control: no-st
 | `GET /projects/{id}/jobs` | Jobs newest first; `page=1`, `page_size=20`, maximum 100 |
 | `GET /jobs/{id}` | Status, parameters, timestamps, error and successful `model_id` |
 | `GET /jobs/{id}/metrics` | Stored metrics in epoch/split/name order; `page_size=100`, maximum 100 |
+| `GET /jobs/{id}/events` | Owner-only SSE; current status, replayable epochs, safe progress messages and terminal result |
 | `POST /jobs/{id}/cancel` | Cancel queued work, or request cooperative cancellation of running work |
 
 Classification example:

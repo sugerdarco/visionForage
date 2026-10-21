@@ -9,7 +9,7 @@ plan's assumption that the whole stack runs on the GPU server.
 | --- | --- | --- |
 | PostgreSQL 16 | Users, projects, labels, job status and metrics | Transactions and relationships fit this data; a shared server supports API and worker processes better than a local SQLite file. |
 | MinIO | Images, frozen manifests, weights and ONNX files | The S3 interface supports direct uploads and future S3 storage. Large binaries stay outside database rows. |
-| Redis 7 | Celery queues; live job events are planned | Fits the Celery workers and planned event stream. PostgreSQL remains the durable source of job status. |
+| Redis 7 | Celery queues and live job notifications | Fits the Celery workers and SSE event stream. PostgreSQL remains the durable source of job status. |
 
 The storage and queue services have health checks and private buckets. The first
 database migration is available in [DATABASE.md](DATABASE.md). The local FastAPI
@@ -81,13 +81,14 @@ LAN; services communicate through Compose's project network.
 
 The current flow is: browser → API → PostgreSQL for records; browser → MinIO via
 presigned URLs for file bytes; API → Redis → local CPU worker for thumbnails.
-The future remote training worker will download the frozen manifest and images
-from MinIO, call `vf_ml`, upload artifacts, write metrics to PostgreSQL and publish
-Redis events.
+The remote training worker downloads the frozen manifest and images from MinIO,
+calls `vf_ml`, uploads artifacts, writes metrics to PostgreSQL and publishes Redis
+notifications. The API uses these notifications and database catch-up to serve
+[live job events](JOB_EVENTS.md) over SSE.
 The API does not import PyTorch. Browser-facing presigned URLs must use the host
 endpoint, because browsers cannot resolve the Compose name `minio`.
 
-Remote integration will use reverse SSH forwarding, initiated **from the laptop**:
+Remote integration uses reverse SSH forwarding, initiated **from the laptop**:
 
 ```bash
 ssh -NT -o ExitOnForwardFailure=yes \

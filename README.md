@@ -28,7 +28,9 @@ accept frozen versions, validate parameters, expose stored metrics and track
 cancellation. The [remote training worker](docs/GPU_WORKER.md) now verifies frozen
 inputs, supervises training and export, saves metrics and registers successful
 model artifacts. Worker heartbeats, expired-job recovery and lost-message
-redelivery are implemented. Live events and registry browsing come next.
+redelivery are implemented. [Live training events](docs/JOB_EVENTS.md) now stream
+status, epoch metrics and safe progress messages, with reconnect support. Model
+registry browsing and promotion come next.
 
 ## Development setup
 

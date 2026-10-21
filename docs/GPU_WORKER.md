@@ -20,7 +20,8 @@ The connection is:
 
 `GET /api/v1/jobs/{id}` now includes `model_id` after successful registration.
 Listing jobs and cancelling a completed job return the same model reference.
-Registry browsing, promotion, live SSE and deployment remain separate work.
+[Live SSE](JOB_EVENTS.md) now reports status, epoch metrics and safe progress
+messages. Registry browsing, promotion and deployment remain separate work.
 
 ## Two Python environments
 
@@ -140,7 +141,10 @@ subprocess writes atomic epoch history files; the supervisor polls them and save
 numeric metrics under the job. Classification records train/validation loss and
 accuracy plus learning rate. Detection records loss components, validation metrics,
 fitness and learning rates. Duplicate metric writes preserve the original values.
-The existing metrics endpoint can be polled until SSE is added.
+After committing epoch metrics, the worker publishes a best-effort Redis event.
+The [SSE endpoint](JOB_EVENTS.md) streams committed metrics and can replay them
+after reconnecting; the existing paginated metrics endpoint remains available.
+Redis publication failure does not fail training.
 
 Successful training alone is insufficient for registration. Test evaluation and
 ONNX export must complete, with opset 17, dynamic batches 1 and 8, and 32 distinct
