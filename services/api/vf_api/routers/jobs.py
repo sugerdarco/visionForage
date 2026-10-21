@@ -10,11 +10,31 @@ from sqlalchemy import func, select
 
 from vf_api.dependencies import CurrentUser, Database, OwnedProject
 from vf_api.job_schemas import JobCreate, JobPage, JobResponse, MetricPage
-from vf_api.models import DatasetVersion, Project, TrainingJob, TrainingMetric
+from vf_api.models import DatasetVersion, Model, Project, TrainingJob, TrainingMetric
 
 router = APIRouter(tags=["training jobs"])
 Page = Annotated[int, Query(ge=1, le=1_000_000)]
 PageSize = Annotated[int, Query(ge=1, le=100)]
+
+
+def job_responses(rows, session):
+    rows = list(rows)
+    identifiers = [row.id for row in rows if row.status == "succeeded"]
+    models = (
+        dict(
+            session.execute(
+                select(Model.job_id, Model.id).where(Model.job_id.in_(identifiers))
+            ).all()
+        )
+        if identifiers
+        else {}
+    )
+    return [
+        JobResponse.model_validate(row).model_copy(
+            update={"model_id": models.get(row.id)}
+        )
+        for row in rows
+    ]
 
 
 def owned_job(job_id, session, user, *, lock=False):
@@ -93,12 +113,14 @@ def list_jobs(
         .offset((page - 1) * page_size)
         .limit(page_size)
     )
-    return JobPage(items=list(rows), total=total, page=page, page_size=page_size)
+    return JobPage(
+        items=job_responses(rows, session), total=total, page=page, page_size=page_size
+    )
 
 
 @router.get("/jobs/{job_id}", response_model=JobResponse)
 def read_job(job_id: UUID, session: Database, user: CurrentUser):
-    return owned_job(job_id, session, user)
+    return job_responses([owned_job(job_id, session, user)], session)[0]
 
 
 @router.post("/jobs/{job_id}/cancel", response_model=JobResponse)
@@ -111,7 +133,7 @@ def cancel_job(job_id: UUID, session: Database, user: CurrentUser):
             row.finished_at = row.cancel_requested_at
         # A running worker must acknowledge the request before it becomes terminal.
         session.commit()
-    return row
+    return job_responses([row], session)[0]
 
 
 @router.get("/jobs/{job_id}/metrics", response_model=MetricPage)

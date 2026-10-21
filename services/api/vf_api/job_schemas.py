@@ -76,6 +76,7 @@ class JobResponse(BaseModel):
     started_at: datetime | None
     finished_at: datetime | None
     error: str | None
+    model_id: UUID | None = None
     created_at: datetime
     updated_at: datetime
 
