@@ -144,7 +144,9 @@ Image upload and CPU thumbnail processing are available in [UPLOADS.md](UPLOADS.
 [Annotation reads and saves](ANNOTATIONS.md) use local PostgreSQL without a worker.
 [Dataset imports](IMPORTS.md) use the same local API, storage and thumbnail worker.
 [Frozen dataset versions](DATASET_VERSIONS.md) use local CPU validation and the
-private `vf-datasets` bucket. Next: training jobs and remote GPU worker integration.
+private `vf-datasets` bucket. [Training jobs](TRAINING_JOBS.md) now use PostgreSQL
+for durable requests and the local CPU worker to dispatch to a separate GPU
+queue. Remote GPU execution and artifact registration remain pending.
 There is no `make up-gpu` or GPU Compose overlay: remote GPU workers will use the
 tested Python environment because the remote account has no Docker access.
 

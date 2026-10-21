@@ -48,7 +48,9 @@ change for host-side migration commands. Passwords are represented as secrets,
 and the database URL is constructed with SQLAlchemy's `URL.create` so special
 characters do not break parsing. No URL or password is stored in `alembic.ini`.
 
-`make migrate` applies migration `0001`. Running it again leaves an up-to-date
+`make migrate` applies revisions through `0002`. The second revision adds training
+dispatch and cancellation timestamps plus an index; see [training jobs](TRAINING_JOBS.md).
+Running it again leaves an up-to-date
 database unchanged. It creates the application tables plus Alembic's revision
 table; it does not seed accounts, import datasets or start an HTTP server.
 
