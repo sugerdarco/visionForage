@@ -1,8 +1,8 @@
 """Publish committed jobs; ambiguous broker acknowledgements may produce duplicates."""
 
-from datetime import datetime, timezone
+from datetime import timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 
 from vf_api.models import TrainingJob
 from vf_api.queueing import TRAIN_TASK
@@ -11,7 +11,10 @@ from vf_api.queueing import TRAIN_TASK
 def dispatch_pending(sessions, queue, *, limit=100):
     pending = (
         TrainingJob.status == "queued",
-        TrainingJob.dispatched_at.is_(None),
+        or_(
+            TrainingJob.dispatched_at.is_(None),
+            TrainingJob.dispatched_at < func.clock_timestamp() - timedelta(minutes=5),
+        ),
         TrainingJob.cancel_requested_at.is_(None),
         TrainingJob.celery_task_id.is_not(None),
     )
@@ -20,7 +23,11 @@ def dispatch_pending(sessions, queue, *, limit=100):
             session.scalars(
                 select(TrainingJob.id)
                 .where(*pending)
-                .order_by(TrainingJob.created_at, TrainingJob.id)
+                .order_by(
+                    TrainingJob.dispatched_at.asc().nullsfirst(),
+                    TrainingJob.created_at,
+                    TrainingJob.id,
+                )
                 .limit(limit)
             )
         )
@@ -42,6 +49,6 @@ def dispatch_pending(sessions, queue, *, limit=100):
                 task_id=job.celery_task_id,
                 retry=False,
             )
-            job.dispatched_at = datetime.now(timezone.utc)
+            job.dispatched_at = session.scalar(select(func.clock_timestamp()))
         published += 1
     return published

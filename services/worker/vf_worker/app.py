@@ -14,6 +14,7 @@ from vf_api.queueing import DISPATCH_TASK, RECOVERY_TASK, THUMBNAIL_TASK, make_q
 from vf_api.settings import QueueSettings, Settings, StorageSettings
 from vf_api.storage import ObjectStore
 from vf_worker.dispatch import dispatch_pending
+from vf_worker.leases import recover_stalled
 
 
 def create_worker(
@@ -29,7 +30,9 @@ def create_worker(
     def dispatch():
         engine = make_engine(database)
         try:
-            return dispatch_pending(make_session_factory(engine), app)
+            sessions = make_session_factory(engine)
+            recover_stalled(sessions)
+            return dispatch_pending(sessions, app)
         finally:
             engine.dispose()
 

@@ -1,6 +1,7 @@
 """Durable training dispatch against disposable PostgreSQL and Redis queues."""
 
 from concurrent.futures import ThreadPoolExecutor
+from datetime import timedelta
 from queue import Empty
 from threading import Event
 import time
@@ -11,7 +12,7 @@ from celery.contrib.testing.worker import start_worker
 from job_fixture import JobAPITest
 from kombu.exceptions import OperationalError as QueueError
 from redis import Redis
-from sqlalchemy import event, select, update
+from sqlalchemy import event, func, select, update
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
@@ -83,6 +84,13 @@ class JobDispatchTest(JobAPITest):
         response = self.create()
         self.assertEqual(response.status_code, 201, response.text)
         identifier = response.json()["id"]
+        abandoned = UUID(self.create().json()["id"])
+        with self.sessions.begin() as session:
+            row = session.get(TrainingJob, abandoned)
+            row.status, row.claim_token = "running", uuid4()
+            row.heartbeat_at = session.scalar(
+                select(func.clock_timestamp() - timedelta(minutes=4))
+            )
         with start_worker(
             self.worker,
             queues=[self.cpu_queue],
@@ -98,6 +106,7 @@ class JobDispatchTest(JobAPITest):
                 if time.monotonic() >= deadline:
                     self.fail("CPU dispatcher did not publish the training request")
                 time.sleep(0.05)
+        self.assertEqual(self.read(abandoned).json()["status"], "failed")
         messages = self.messages()
         self.assertEqual(len(messages), 1)
         self.assertEqual(messages[0]["headers"]["task"], TRAIN_TASK)
@@ -126,6 +135,7 @@ class JobDispatchTest(JobAPITest):
 
     def test_database_failure_after_send_reuses_task_id_when_republished(self):
         identifier = self.create().json()["id"]
+
         # The broker may accept a message just before the database commit fails.
         def fail_update(connection, cursor, statement, parameters, context, many):
             if statement.startswith("UPDATE training_jobs SET dispatched_at"):
@@ -226,3 +236,30 @@ class JobDispatchTest(JobAPITest):
                     )
                 )
             )
+
+    def test_lost_confirmed_message_is_republished_after_five_minutes(self):
+        identifier = UUID(self.create().json()["id"])
+        self.assertEqual(self.dispatch(), 1)
+        first = self.messages()  # Remove the accepted message without executing it.
+        self.assertEqual(self.dispatch(), 0)
+        with self.sessions.begin() as session:
+            session.get(TrainingJob, identifier).dispatched_at = session.scalar(
+                select(func.clock_timestamp() - timedelta(minutes=6))
+            )
+        self.assertEqual(self.dispatch(), 1)
+        self.assertEqual(self.messages(), first)
+        self.assertEqual(self.dispatch(), 0)
+
+    def test_new_jobs_dispatch_before_repeated_queued_deliveries(self):
+        old = UUID(self.create().json()["id"])
+        self.dispatch()
+        self.messages()
+        with self.sessions.begin() as session:
+            session.get(TrainingJob, old).dispatched_at = session.scalar(
+                select(func.clock_timestamp() - timedelta(minutes=6))
+            )
+        new = self.create().json()["id"]
+        self.assertEqual(self.dispatch(limit=1), 1)
+        self.assertEqual(self.messages()[0]["payload"][0], [new])
+        self.assertEqual(self.dispatch(limit=1), 1)
+        self.assertEqual(self.messages()[0]["payload"][0], [str(old)])
