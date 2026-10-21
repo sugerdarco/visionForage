@@ -21,6 +21,7 @@ from sqlalchemy.dialects.postgresql import insert
 from vf_api.job_schemas import JobCreate
 from vf_api.models import DatasetVersion, Model, Project, TrainingJob, TrainingMetric
 from vf_worker.frozen_data import materialize
+from vf_worker.leases import Heartbeat, LeaseLost, owned
 
 
 class Cancelled(Exception):
@@ -60,6 +61,7 @@ def claim(sessions, identifier, task_id, gpu_id):
             return None
         job.status, job.gpu_id = "running", gpu_id
         job.started_at = session.scalar(select(func.clock_timestamp()))
+        job.heartbeat_at, job.claim_token = job.started_at, uuid4()
         version = session.get(DatasetVersion, job.dataset_version_id)
         task = {"resnet18": "classification", "yolov8s": "detection"}.get(
             job.model_arch
@@ -69,18 +71,16 @@ def claim(sessions, identifier, task_id, gpu_id):
     return job, version, task
 
 
-def check_active(sessions, identifier):
+def check_active(sessions, identifier, token):
     with sessions() as session:
-        row = session.execute(
-            select(TrainingJob.status, TrainingJob.cancel_requested_at).where(
-                TrainingJob.id == identifier
-            )
-        ).one()
-        if row.status != "running" or row.cancel_requested_at is not None:
+        if (
+            session.scalar(select(TrainingJob.id).where(*owned(identifier, token)))
+            is None
+        ):
             raise Cancelled()
 
 
-def record_history(sessions, identifier, path, after):
+def record_history(sessions, identifier, token, path, after):
     if not path.exists():
         return after
     if path.stat().st_size > 32 * 1024**2:
@@ -131,11 +131,9 @@ def record_history(sessions, identifier, path, after):
     if values:
         with sessions.begin() as session:
             job = session.scalar(
-                select(TrainingJob)
-                .where(TrainingJob.id == identifier)
-                .with_for_update()
+                select(TrainingJob).where(*owned(identifier, token)).with_for_update()
             )
-            if job.status != "running" or job.cancel_requested_at is not None:
+            if job is None:
                 raise Cancelled()
             session.execute(
                 insert(TrainingMetric)
@@ -299,16 +297,16 @@ def verify_bundle(work, manifest, manifest_sha):
 
 
 def register(
-    sessions, identifier, project_id, class_map, metrics, artifacts, input_size
+    sessions, identifier, token, project_id, class_map, metrics, artifacts, input_size
 ):
     with sessions.begin() as session:
         session.execute(
             select(Project.id).where(Project.id == project_id).with_for_update()
         ).one()
         job = session.scalar(
-            select(TrainingJob).where(TrainingJob.id == identifier).with_for_update()
+            select(TrainingJob).where(*owned(identifier, token)).with_for_update()
         )
-        if job.status != "running" or job.cancel_requested_at is not None:
+        if job is None:
             raise Cancelled()
         last = session.scalar(
             select(func.max(Model.version)).where(Model.project_id == project_id)
@@ -333,12 +331,12 @@ def register(
     return str(model_id)
 
 
-def finish_unsuccessful(sessions, identifier, error):
+def finish_unsuccessful(sessions, identifier, token, error):
     with sessions.begin() as session:
         job = session.scalar(
             select(TrainingJob).where(TrainingJob.id == identifier).with_for_update()
         )
-        if job.status == "running":
+        if job is not None and job.status == "running" and job.claim_token == token:
             job.status = (
                 "cancelled" if job.cancel_requested_at is not None else "failed"
             )
@@ -370,82 +368,95 @@ def run_job(
         job, version, task = claimed
         stage = "Dataset verification failed"
         try:
-            request = TypeAdapter(JobCreate).validate_python(
-                dict(
-                    dataset_version_id=version.id,
-                    model_arch=job.model_arch,
-                    hyperparams=job.hyperparams,
-                )
-            )
-            with TemporaryDirectory(prefix=f"{identifier}-", dir=root) as directory:
-                work = Path(directory)
-
-                def check():
-                    check_active(sessions, identifier)
-
-                manifest = materialize(
-                    version, job.project_id, task, work, datasets, images, check
-                )
-                stage = "Training or export verification failed; inspect the private worker log"
-                epoch = 0
-
-                def progress():
-                    nonlocal epoch
-                    epoch = record_history(
-                        sessions, identifier, work / "run/history.json", epoch
-                    )
-
-                executor(
+            with Heartbeat(sessions, identifier, job.claim_token) as heartbeat:
+                request = TypeAdapter(JobCreate).validate_python(
                     dict(
-                        work=str(work),
+                        dataset_version_id=version.id,
                         model_arch=job.model_arch,
-                        hyperparams=request.hyperparams.model_dump(),
-                        device=settings.worker_device,
-                        cpu_threads=settings.worker_cpu_threads,
-                        cache=str(settings.worker_cache_dir.resolve()),
-                    ),
-                    settings,
-                    root / f"{identifier}.log",
-                    check,
-                    progress,
-                )
-                check()
-                metrics, verification, input_size = verify_bundle(
-                    work, manifest, version.counts["manifest_sha256"]
-                )
-                stage = "Artifact publication failed"
-                prefix = f"{job.project_id}/jobs/{identifier}/{uuid4()}"
-                index = {}
-                for name in (
-                    "manifest.json",
-                    "audit.json",
-                    "run/best.pt",
-                    "run/run.json",
-                    "run/history.json",
-                    "evaluation.json",
-                    "onnx/model.onnx",
-                    "onnx/metadata.json",
-                    "onnx/verification.json",
-                ):
-                    check()
-                    index[name] = artifacts.put_file_once(
-                        f"{prefix}/{name}", work / name
+                        hyperparams=job.hyperparams,
                     )
-                return register(
-                    sessions,
-                    identifier,
-                    job.project_id,
-                    dict(manifest.class_map),
-                    {
-                        "test": metrics,
-                        "parity": verification["parity"],
-                        "latency": verification["latency"],
-                    },
-                    index,
-                    input_size,
                 )
-        except Cancelled:
-            finish_unsuccessful(sessions, identifier, "Training stopped")
+                with TemporaryDirectory(prefix=f"{identifier}-", dir=root) as directory:
+                    work = Path(directory)
+
+                    def check():
+                        heartbeat.check()
+                        check_active(sessions, identifier, job.claim_token)
+
+                    manifest = materialize(
+                        version, job.project_id, task, work, datasets, images, check
+                    )
+                    stage = "Training or export verification failed; inspect the private worker log"
+                    epoch = 0
+
+                    def progress():
+                        nonlocal epoch
+                        epoch = record_history(
+                            sessions,
+                            identifier,
+                            job.claim_token,
+                            work / "run/history.json",
+                            epoch,
+                        )
+
+                    executor(
+                        dict(
+                            work=str(work),
+                            model_arch=job.model_arch,
+                            hyperparams=request.hyperparams.model_dump(),
+                            device=settings.worker_device,
+                            cpu_threads=settings.worker_cpu_threads,
+                            cache=str(settings.worker_cache_dir.resolve()),
+                        ),
+                        settings,
+                        root / f"{identifier}.log",
+                        check,
+                        progress,
+                    )
+                    check()
+                    metrics, verification, input_size = verify_bundle(
+                        work, manifest, version.counts["manifest_sha256"]
+                    )
+                    stage = "Artifact publication failed"
+                    prefix = f"{job.project_id}/jobs/{identifier}/{uuid4()}"
+                    index = {}
+                    for name in (
+                        "manifest.json",
+                        "audit.json",
+                        "run/best.pt",
+                        "run/run.json",
+                        "run/history.json",
+                        "evaluation.json",
+                        "onnx/model.onnx",
+                        "onnx/metadata.json",
+                        "onnx/verification.json",
+                    ):
+                        check()
+                        index[name] = artifacts.put_file_once(
+                            f"{prefix}/{name}", work / name
+                        )
+                    check()
+                    return register(
+                        sessions,
+                        identifier,
+                        job.claim_token,
+                        job.project_id,
+                        dict(manifest.class_map),
+                        {
+                            "test": metrics,
+                            "parity": verification["parity"],
+                            "latency": verification["latency"],
+                        },
+                        index,
+                        input_size,
+                    )
+        except (Cancelled, LeaseLost):
+            finish_unsuccessful(
+                sessions,
+                identifier,
+                job.claim_token,
+                "Training stopped or worker lease lost",
+            )
         except Exception:
             # Never expose exception text containing credentials, hostnames or local paths.
             try:
@@ -458,5 +469,5 @@ def run_job(
                     traceback.print_exc(file=log)
             except OSError:
                 pass  # Logging failure must not prevent recording a terminal job state.
-            finish_unsuccessful(sessions, identifier, stage)
+            finish_unsuccessful(sessions, identifier, job.claim_token, stage)
         return None

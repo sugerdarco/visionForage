@@ -1,6 +1,7 @@
 """Worker state and storage boundaries; the controlled executor does not train ML."""
 
 from concurrent.futures import ThreadPoolExecutor
+from datetime import timedelta
 import hashlib
 import json
 from pathlib import Path
@@ -13,7 +14,7 @@ from uuid import UUID, uuid4
 
 from botocore.exceptions import ClientError
 from job_fixture import JobAPITest
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from test_dataset_snapshots import snapshot_fixture
 
@@ -24,9 +25,11 @@ from vf_api.settings import StorageSettings
 from vf_api.storage import ArtifactStore, DatasetStore, ObjectStore
 from vf_api.version_schemas import VersionCreate
 from vf_worker.settings import WorkerSettings
+from vf_worker.leases import EXPIRED_ERROR, recover_stalled
 from vf_worker.training import (
     Cancelled,
     WorkerBusy,
+    claim,
     execute,
     gpu_slot,
     record_history,
@@ -419,10 +422,8 @@ class TrainingWorkerTest(JobAPITest):
         self.assertEqual(self.models(), [])
 
     def test_detector_epoch_metrics_are_durable_and_repeat_safe(self):
-        identifier, _ = self.submit()
-        with Session(self.engine) as session:
-            session.get(TrainingJob, identifier).status = "running"
-            session.commit()
+        identifier, task_id = self.submit()
+        job, _, _ = claim(self.sessions, identifier, task_id, 0)
         path = Path(self.temporary.name) / "history.json"
         path.write_text(
             json.dumps(
@@ -441,7 +442,9 @@ class TrainingWorkerTest(JobAPITest):
             )
         )
         for _ in range(2):
-            self.assertEqual(record_history(self.sessions, identifier, path, 0), 1)
+            self.assertEqual(
+                record_history(self.sessions, identifier, job.claim_token, path, 0), 1
+            )
         with Session(self.engine) as session:
             rows = list(
                 session.scalars(
@@ -491,3 +494,54 @@ class TrainingWorkerTest(JobAPITest):
                     lambda: None,
                 )
         self.assertLess(processes[0].returncode, 0)
+
+    def expire_job(self, identifier):
+        with self.sessions.begin() as session:
+            session.get(TrainingJob, identifier).heartbeat_at = session.scalar(
+                select(func.clock_timestamp() - timedelta(minutes=4))
+            )
+        self.assertEqual(recover_stalled(self.sessions), 1)
+
+    def test_recovery_during_last_upload_blocks_model_registration(self):
+        identifier, task_id = self.submit()
+        original = self.artifacts.put_file_once
+
+        def expire_after_last_write(key, path):
+            result = original(key, path)
+            if key.endswith("onnx/verification.json"):
+                self.expire_job(identifier)
+            return result
+
+        with (
+            patch("vf_worker.leases.HEARTBEAT_SECONDS", 60),
+            patch.object(
+                self.artifacts, "put_file_once", side_effect=expire_after_last_write
+            ),
+        ):
+            self.run_job(identifier, task_id)
+        row = self.read(identifier).json()
+        self.assertEqual(row["status"], "failed")
+        self.assertEqual(row["error"], EXPIRED_ERROR)
+        self.assertEqual(self.models(), [])
+
+    def test_recovery_stops_real_training_child_and_preserves_failure(self):
+        identifier, task_id = self.submit()
+        original = subprocess.Popen
+        processes = []
+
+        def sleeping(*args, **kwargs):
+            process = original(
+                [sys.executable, "-c", "import time; time.sleep(30)"], **kwargs
+            )
+            processes.append(process)
+            self.expire_job(identifier)
+            return process
+
+        with (
+            patch("vf_worker.leases.HEARTBEAT_SECONDS", 60),
+            patch("vf_worker.training.subprocess.Popen", side_effect=sleeping),
+        ):
+            self.run_job(identifier, task_id, executor=execute)
+        self.assertLess(processes[0].returncode, 0)
+        self.assertEqual(self.read(identifier).json()["error"], EXPIRED_ERROR)
+        self.assertEqual(self.models(), [])

@@ -14,7 +14,17 @@ def create_gpu_worker(database=None, storage=None, queue=None, worker=None):
     @app.task(name=TRAIN_TASK, bind=True, shared=False, lazy=False, max_retries=None)
     def train(self, job_id):
         configuration = worker or WorkerSettings()
-        engine = make_engine(database or Settings())
+        engine = make_engine(
+            database or Settings(),
+            connect_args={
+                # Bound control queries and broken TCP links well inside the lease.
+                "options": "-c statement_timeout=15000 -c lock_timeout=10000",
+                "tcp_user_timeout": 15000,
+                "keepalives_idle": 10,
+                "keepalives_interval": 5,
+                "keepalives_count": 3,
+            },
+        )
         storage_settings = storage or StorageSettings()
         stores = []
         try:
