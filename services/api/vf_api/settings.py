@@ -51,6 +51,7 @@ class StorageSettings(EnvironmentSettings):
     s3_region: str = "us-east-1"
     s3_images_bucket: str = "vf-images"
     s3_datasets_bucket: str = "vf-datasets"
+    s3_artifacts_bucket: str = "vf-artifacts"
 
     @property
     def endpoint(self) -> str:

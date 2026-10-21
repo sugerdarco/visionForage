@@ -158,6 +158,34 @@ class DatasetStore(ObjectStore):
         )
 
 
+class ArtifactStore(ObjectStore):
+    """Stream immutable training artifacts into their own private bucket."""
+
+    def __init__(self, settings: StorageSettings):
+        super().__init__(settings)
+        self.bucket = settings.s3_artifacts_bucket
+
+    def put_file_once(self, key, path):
+        size = path.stat().st_size
+        if not 0 < size <= 1024**3:
+            raise ValueError("Artifact must be nonempty and at most 1 GiB")
+        with path.open("rb") as source:
+            digest = hashlib.file_digest(source, "sha256").digest()
+            source.seek(0)
+            self.client.put_object(
+                Bucket=self.bucket,
+                Key=key,
+                Body=source,
+                ContentLength=size,
+                ContentType="application/json"
+                if path.suffix == ".json"
+                else "application/octet-stream",
+                IfNoneMatch="*",
+                ChecksumSHA256=base64.b64encode(digest).decode("ascii"),
+            )
+        return {"key": key, "sha256": digest.hex(), "bytes": size}
+
+
 if __name__ == "__main__":
     ObjectStore(StorageSettings()).configure_staging_expiry()
     print(
