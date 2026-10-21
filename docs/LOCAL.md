@@ -9,12 +9,12 @@ plan's assumption that the whole stack runs on the GPU server.
 | --- | --- | --- |
 | PostgreSQL 16 | Users, projects, labels, job status and metrics | Transactions and relationships fit this data; a shared server supports API and worker processes better than a local SQLite file. |
 | MinIO | Images, frozen manifests, weights and ONNX files | The S3 interface supports direct uploads and future S3 storage. Large binaries stay outside database rows. |
-| Redis 7 | Future Celery queue and live job events | Fits the planned Celery worker and event stream. PostgreSQL remains the durable source of job status. |
+| Redis 7 | Celery queues; live job events are planned | Fits the Celery workers and planned event stream. PostgreSQL remains the durable source of job status. |
 
 The storage and queue services have health checks and private buckets. The first
 database migration is available in [DATABASE.md](DATABASE.md). The local FastAPI
 account service is described in [API.md](API.md). [UPLOADS.md](UPLOADS.md) adds
-the local CPU thumbnail worker; GPU training worker integration is still pending.
+the local CPU thumbnail worker; [GPU_WORKER.md](GPU_WORKER.md) connects remote training.
 
 ## One-time setup
 
@@ -146,7 +146,8 @@ Image upload and CPU thumbnail processing are available in [UPLOADS.md](UPLOADS.
 [Frozen dataset versions](DATASET_VERSIONS.md) use local CPU validation and the
 private `vf-datasets` bucket. [Training jobs](TRAINING_JOBS.md) now use PostgreSQL
 for durable requests and the local CPU worker to dispatch to a separate GPU
-queue. Remote GPU execution and artifact registration remain pending.
+queue. The [remote GPU worker](GPU_WORKER.md) now executes training, saves metrics
+and registers verified artifacts through private service connections.
 There is no `make up-gpu` or GPU Compose overlay: remote GPU workers will use the
 tested Python environment because the remote account has no Docker access.
 

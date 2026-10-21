@@ -5,12 +5,12 @@ The local API validates the request and stores it in PostgreSQL. A local CPU
 worker publishes the job ID to Redis's separate `gpu` queue. No model, image,
 credential or remote connection string travels in the task payload.
 
-**Current boundary:** submission, listing, metrics reads, cancellation requests
-and dispatch are implemented. The GPU consumer, frozen-data download,
-train/evaluate/export pipeline, metric writes, model registration and live SSE
-remain pending. Jobs stay `queued` until that consumer is implemented and started;
-a dispatch timestamp does not mean training has begun. Existing standalone ML
-scripts remain available for training.
+Submission, listing, metrics, cancellation and dispatch now connect to the
+[GPU consumer](GPU_WORKER.md), which verifies frozen data, runs training/evaluation/
+export, saves epoch metrics and registers successful models. Start that consumer
+to execute queued jobs; a dispatch timestamp does not mean training has begun.
+Live SSE, stalled-job recovery and registry browsing remain pending. Existing
+standalone ML scripts remain available for training.
 
 ## Run locally
 
@@ -49,7 +49,7 @@ Foreign and missing records both return 404. Responses use `Cache-Control: no-st
 | --- | --- |
 | `POST /projects/{id}/jobs` | 201: persist a new queued job and its effective hyperparameters |
 | `GET /projects/{id}/jobs` | Jobs newest first; `page=1`, `page_size=20`, maximum 100 |
-| `GET /jobs/{id}` | Status, parameters, dispatch/start/finish/cancellation timestamps and error |
+| `GET /jobs/{id}` | Status, parameters, timestamps, error and successful `model_id` |
 | `GET /jobs/{id}/metrics` | Stored metrics in epoch/split/name order; `page_size=100`, maximum 100 |
 | `POST /jobs/{id}/cancel` | Cancel queued work, or request cooperative cancellation of running work |
 
@@ -100,8 +100,8 @@ inspect the project job list before submitting again.
 
 `queued` means accepted but not claimed, including time waiting in Redis.
 `dispatched_at` records a successful publish followed by a database commit.
-`running` will mean the GPU worker has claimed the job; its `gpu_id` and
-`started_at` will identify the allocation and start time.
+`running` means the GPU worker has claimed the job; its `gpu_id` and
+`started_at` identify the configured allocation and start time.
 
 Cancelling a queued job sets `cancelled`, `cancel_requested_at` and `finished_at`
 in one transaction, even if a message is already in Redis. Cancelling a running
@@ -151,5 +151,5 @@ The PostgreSQL tests exercise ownership, typed parameters, dataset eligibility,
 metrics pagination, concurrent cancellation and terminal-state behavior. The
 Redis integration tests use private disposable queues to check CPU-to-GPU routing,
 broker failure recovery, bounded batches, concurrent publishers, cancellation
-races and duplicate publication after a failed database update. They do not run
-a GPU training job or claim that model registration is complete.
+races and duplicate publication after a failed database update. These tests cover
+dispatch; [worker checks](GPU_WORKER.md#checks) cover execution and registration.

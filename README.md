@@ -25,7 +25,9 @@ COCO ZIPs through private storage. [Frozen dataset versions](docs/DATASET_VERSIO
 now preserve labels, class maps, deterministic splits and checksummed audit files.
 [Training-job endpoints and durable queue dispatch](docs/TRAINING_JOBS.md) now
 accept frozen versions, validate parameters, expose stored metrics and track
-cancellation. GPU execution, live events and model registration come next.
+cancellation. The [remote training worker](docs/GPU_WORKER.md) now verifies frozen
+inputs, supervises training and export, saves metrics and registers successful
+model artifacts. Live events, stalled-job recovery and registry browsing come next.
 
 ## Development setup
 
