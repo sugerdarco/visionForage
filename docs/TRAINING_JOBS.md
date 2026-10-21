@@ -9,7 +9,8 @@ Submission, listing, metrics, cancellation and dispatch now connect to the
 [GPU consumer](GPU_WORKER.md), which verifies frozen data, runs training/evaluation/
 export, saves epoch metrics and registers successful models. Start that consumer
 to execute queued jobs; a dispatch timestamp does not mean training has begun.
-Live SSE, stalled-job recovery and registry browsing remain pending. Existing
+Stalled-job recovery and lost-message redelivery are implemented. Live SSE and
+registry browsing remain pending. Existing
 standalone ML scripts remain available for training.
 
 ## Run locally
@@ -32,13 +33,17 @@ make beat
 
 Use one Beat scheduler. It sends `visionforge.training.dispatch` every 10 seconds
 to the CPU queue, alongside the existing thumbnail recovery schedule. The CPU
-worker explicitly consumes only `cpu`; keep the `--queues=cpu` setting in
+worker also reconciles expired training heartbeats before publishing. It explicitly
+consumes only `cpu`; keep the `--queues=cpu` setting in
 `make worker`. Starting Celery without an explicit queue selection can make it
 consume other queues known to that app and discard unregistered task types.
 
 Migration `0002` adds nullable `dispatched_at` and `cancel_requested_at` columns
 and an index for pending dispatch. Existing records remain intact. Legacy rows
-without a Celery task ID are not dispatched automatically.
+without a Celery task ID are not dispatched automatically. Migration `0003` adds
+worker heartbeat/ownership columns and indexes for recovery and repeated dispatch.
+For an existing GPU-worker installation, follow the [upgrade sequence](GPU_WORKER.md#updating-existing-installations)
+before migrating; old workers do not enforce the new lease checks.
 
 ## HTTP contract
 
@@ -99,15 +104,17 @@ inspect the project job list before submitting again.
 ## State and cancellation
 
 `queued` means accepted but not claimed, including time waiting in Redis.
-`dispatched_at` records a successful publish followed by a database commit.
+`dispatched_at` records the latest successful publish followed by a database commit.
+It advances if an unclaimed queued job needs redelivery after five minutes.
 `running` means the GPU worker has claimed the job; its `gpu_id` and
 `started_at` identify the configured allocation and start time.
 
 Cancelling a queued job sets `cancelled`, `cancel_requested_at` and `finished_at`
 in one transaction, even if a message is already in Redis. Cancelling a running
 job sets only `cancel_requested_at`; it stays `running` until its worker stops
-and acknowledges the cancellation. This avoids reporting a GPU as idle while
-computation continues. Repeated cancellation preserves timestamps. Cancelling a
+and acknowledges the cancellation. If its heartbeat expires first, recovery marks
+it failed with an unknown execution state. Neither result from recovery claims that
+the GPU is idle. Repeated cancellation preserves timestamps. Cancelling a
 terminal `succeeded`, `failed` or `cancelled` job returns it unchanged.
 
 The cancellation endpoint does not kill remote processes or rely on Celery's
@@ -123,7 +130,8 @@ Its committed job row also acts as an outbox: the API does not depend on a secon
 system being available to accept a request. Redis/Celery supplies worker delivery
 and routing without putting GPU libraries into the API process.
 
-Each dispatch pass considers at most 100 oldest pending jobs. It locks one row
+Each dispatch pass considers at most 100 eligible queued jobs: never-published
+rows first, then the oldest dispatches that are at least five minutes old. It locks one row
 with `FOR UPDATE SKIP LOCKED`, checks that it is still queued, publishes only its
 ID with a stable Celery task ID, then records dispatch. Other dispatchers skip
 locked jobs; cancellation uses the same row lock. A broker exception rolls back
@@ -135,15 +143,17 @@ PostgreSQL and Redis do not share an atomic commit. If Redis accepts a message
 and the database commit fails, the dispatcher sends the same task ID again.
 **Celery task IDs do not deduplicate execution.** The GPU consumer must atomically
 claim a still-queued, uncancelled row before allocating work and reject duplicate
-claims. It must separately handle crashes after claiming; worker leases and
-stalled-run recovery are not implemented here.
+claims. Each claim also has a database heartbeat and ownership token; the CPU
+worker reconciles expired running jobs without restarting their training.
+See [worker recovery](GPU_WORKER.md#heartbeats-and-recovery) for lease timing and
+failure semantics.
 
-Once a dispatch timestamp is committed, this dispatcher does not republish it.
-Redis data loss or manual queue deletion can therefore leave a job queued with
-no message. The current Redis persistence policy is described in [LOCAL.md](LOCAL.md).
-Automatic recovery for that case remains part of GPU-worker integration; this
-increment only recovers unconfirmed publication. Public job errors should contain
-safe summaries, never raw exception strings with credentials or remote paths.
+If Redis loses a confirmed message, the five-minute redelivery restores it as
+long as PostgreSQL still says the job is queued. The tradeoff is duplicate messages
+while GPUs are busy or offline, at most one new delivery per job per five minutes.
+No cross-service exactly-once delivery is assumed. The current Redis persistence
+policy is described in [LOCAL.md](LOCAL.md). Public job errors contain safe
+summaries, never raw exception strings with credentials or remote paths.
 
 ## Validation
 
@@ -151,5 +161,6 @@ The PostgreSQL tests exercise ownership, typed parameters, dataset eligibility,
 metrics pagination, concurrent cancellation and terminal-state behavior. The
 Redis integration tests use private disposable queues to check CPU-to-GPU routing,
 broker failure recovery, bounded batches, concurrent publishers, cancellation
-races and duplicate publication after a failed database update. These tests cover
+races, recovery of lost confirmed messages, and duplicate publication after a
+failed database update. These tests cover
 dispatch; [worker checks](GPU_WORKER.md#checks) cover execution and registration.

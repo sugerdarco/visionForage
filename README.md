@@ -27,7 +27,8 @@ now preserve labels, class maps, deterministic splits and checksummed audit file
 accept frozen versions, validate parameters, expose stored metrics and track
 cancellation. The [remote training worker](docs/GPU_WORKER.md) now verifies frozen
 inputs, supervises training and export, saves metrics and registers successful
-model artifacts. Live events, stalled-job recovery and registry browsing come next.
+model artifacts. Worker heartbeats, expired-job recovery and lost-message
+redelivery are implemented. Live events and registry browsing come next.
 
 ## Development setup
 

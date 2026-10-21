@@ -11,7 +11,8 @@ The connection is:
 1. The API commits the job and its frozen dataset version ID to PostgreSQL.
 2. The local CPU dispatcher publishes the job ID to Redis.
 3. The remote supervisor claims the matching queued job, downloads and verifies
-   the snapshot, then starts the ML Python executable.
+   the snapshot, then starts the ML Python executable. It renews a PostgreSQL
+   heartbeat throughout download, training and publication.
 4. The subprocess trains, selects its checkpoint using validation data, evaluates
    the test split, and exports ONNX with the existing parity gates.
 5. The supervisor saves epoch metrics to PostgreSQL, uploads verified artifacts
@@ -186,15 +187,60 @@ model. API error text is a safe summary; detailed diagnostics stay in private
 `WORKER_WORK_DIR/<job-id>.log` files. Temporary data, checkpoints and exports are
 removed when a normal task finishes; logs remain for operator inspection.
 
-## Remaining operational work
+## Heartbeats and recovery
 
-This is not automatic recovery from every infrastructure failure. Abrupt worker
-death or a database outage that prevents the final state update can leave a job
-`running`. Duplicate delivery will not restart it, avoiding overlapping training,
-but leases, heartbeats and stalled-job reconciliation remain to be implemented.
-Confirm that its subprocess is stopped before manually reconciling such a job.
-Redis message loss after confirmed dispatch has the previously documented recovery
-gap. Do not delete queues or blindly reset running jobs to queued.
+Each claim creates an internal random ownership token and a database-clock
+heartbeat. A separate thread renews that heartbeat every 10 seconds, including
+while a storage call or an ML epoch is taking time. Metric writes, heartbeat
+renewals and model registration require the same token and an unexpired
+180-second lease. An expired worker cannot renew itself, even before recovery runs.
+Failure updates also require the token, preventing an old process from overwriting
+a different claim. These internal fields are not exposed in job responses.
+
+The local CPU dispatch task checks for expired running jobs every 10 seconds,
+processing at most 100 per pass with row locks and `SKIP LOCKED`. It marks them
+`failed` with `Worker heartbeat expired; execution state unknown`. This includes
+jobs with an unacknowledged cancellation request: losing contact cannot prove that
+the remote process stopped, so recovery does not report them as cancelled or claim
+that the GPU is free. Scheduler delays, CPU queue backlog and database outages can
+delay reconciliation. Keep one Beat scheduler and the CPU worker running.
+
+The supervisor stops ML execution if a control check or heartbeat fails. GPU-worker
+PostgreSQL connections use a 15-second statement timeout, 10-second lock timeout,
+and TCP keepalive/user-timeout settings to bound broken control connections.
+A local watchdog also rejects a heartbeat that has not succeeded for 90 seconds.
+During storage I/O, stopping still waits for the current bounded operation to
+return. A late upload can leave an orphan object, but it cannot register a model
+after recovery or lease expiry.
+
+We use database ownership rather than Celery visibility timeout as the execution
+authority: a Redis redelivery does not tell us whether an earlier GPU process is
+still running. The three-minute lease allows scheduling jitter and separates
+worker liveness from epoch duration. The tradeoff is delayed crash detection;
+a transient control-connection failure also stops work conservatively. Failed
+jobs are **not automatically retrained**. Inspect the private worker and confirm
+that its process stopped before submitting a new job. Resuming checkpoints and
+an operator retry endpoint remain future work.
+
+The dispatcher also republishes unclaimed queued jobs after five minutes, with
+the same task ID. This repairs confirmed messages lost from Redis. An offline or
+busy GPU queue can accumulate duplicates at one per queued job per five minutes;
+messages are not deleted or assumed to be unique. The atomic database claim keeps
+those deliveries from starting the same job twice. Stop submitting large backlogs
+when no GPU workers are available; queue compaction is not implemented.
+
+### Updating existing installations
+
+Stop or drain old GPU supervisors and confirm their ML children have exited before
+upgrading: old code does not enforce the new ownership checks. Stop CPU workers
+and Beat, pull the same code on both machines, apply `make migrate` locally, then
+restart CPU workers, Beat and the new GPU supervisors. Migration `0003` adds the
+two nullable ownership columns and updates the dispatch/recovery indexes; existing
+records are preserved. It gives existing running rows a fresh three-minute recovery
+window. Those rows cannot be resumed by the new worker and become failed after
+that window unless already reconciled. Do not reset them blindly to queued.
+
+## Remaining operational work
 
 MinIO and PostgreSQL do not share a transaction. Partial uploads or cancellation
 after upload can leave unreferenced artifact objects; automatic orphan cleanup,
@@ -208,6 +254,9 @@ worker database/storage credentials are future deployment hardening.
 ML executor for failure and concurrency cases. It covers single registration,
 duplicate delivery, cancellation, immutable artifact writes, corrupted data,
 failed export, partial upload, metric replay and actual subprocess termination.
+Recovery tests also cover lost confirmed queue messages, heartbeat expiry,
+background renewals, changed ownership, concurrent recovery, late uploads and
+termination of a real child process when its job is recovered.
 These tests do not claim that their synthetic byte artifacts are trained models.
 The existing ML suite separately checks real optimization, evaluation and ONNX.
 

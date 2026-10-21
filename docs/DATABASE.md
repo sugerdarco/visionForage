@@ -15,14 +15,15 @@ database rows store their object keys.
 | `predictions` | Each logged result references a deployment and its stored input image. |
 
 The API opens a session for a unit of work, validates project ownership and
-commits account/project/class/image transactions. Workers will use the same job and
+commits account/project/class/image transactions. Workers use the same job and
 metric records, but training still reads a frozen manifest rather than querying
 live image and annotation tables. [Account HTTP routes](API.md) and
 [project/class routes](PROJECTS.md) are implemented. [Uploads and CPU thumbnails](UPLOADS.md)
 now use image rows; [annotation saves](ANNOTATIONS.md) atomically replace labels
 and update image status. [Dataset versions](DATASET_VERSIONS.md) now store frozen
-manifest keys, split settings and checksum/count metadata. GPU worker integration
-comes next.
+manifest keys, split settings and checksum/count metadata. The [GPU worker](GPU_WORKER.md)
+claims training jobs, saves metrics and registers verified models. Heartbeats and
+ownership tokens prevent expired workers from publishing results.
 
 ## Setup and migration
 
@@ -48,8 +49,10 @@ change for host-side migration commands. Passwords are represented as secrets,
 and the database URL is constructed with SQLAlchemy's `URL.create` so special
 characters do not break parsing. No URL or password is stored in `alembic.ini`.
 
-`make migrate` applies revisions through `0002`. The second revision adds training
-dispatch and cancellation timestamps plus an index; see [training jobs](TRAINING_JOBS.md).
+`make migrate` applies revisions through `0003`. Revision `0002` adds training
+dispatch and cancellation timestamps; `0003` adds heartbeat and ownership fields
+and updates recovery/dispatch indexes. See [training jobs](TRAINING_JOBS.md) and the
+[worker upgrade sequence](GPU_WORKER.md#updating-existing-installations).
 Running it again leaves an up-to-date
 database unchanged. It creates the application tables plus Alembic's revision
 table; it does not seed accounts, import datasets or start an HTTP server.
@@ -93,10 +96,10 @@ cascade-delete history, so project removal will need an explicit cleanup workflo
 
 This schema is not an authorization layer. Project routes enforce ownership and
 assign append-only class indices. Annotation routes enforce same-project
-image/class pairing and task-specific label rules. Upcoming API routes must
-enforce allowed job transitions and successful-job
-requirements for model registration. The `anomaly` task value is reserved by the
-plan; no anomaly training feature is implemented.
+image/class pairing and task-specific label rules. Training routes and the worker
+enforce allowed job transitions and successful-job requirements for registration.
+Upcoming registry and deployment routes must preserve these boundaries. The
+`anomaly` task value is reserved by the plan; no anomaly training is implemented.
 
 ## Validation and future changes
 
@@ -122,8 +125,8 @@ every database object: review CHECK constraints and trigger changes explicitly.
 The current integration tests target the initial schema and must evolve with
 later revisions. See the [Alembic autogeneration documentation](https://alembic.sqlalchemy.org/en/latest/autogenerate.html).
 
-Verified on 2026-10-20 against local PostgreSQL 16: all 10 database/configuration
-tests and 109 existing tests pass, along with lint. Revision `0001` is applied
-locally; Alembic's schema comparison reports no pending changes. Offline SQL
-generation also succeeds. Account endpoints were added next; see [API.md](API.md)
-for their contract and integration checks.
+Revision `0003` validation passes 66 database/API tests and 64 service integration
+tests against local PostgreSQL, Redis and MinIO, along with lint. It is applied
+locally, and Alembic's schema comparison reports no pending changes. The tests
+include full downgrade/upgrade coverage, worker heartbeat recovery, ownership
+checks and lost queue messages.
