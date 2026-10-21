@@ -2,7 +2,7 @@
 
 from contextlib import asynccontextmanager
 import secrets
-from threading import Lock
+from threading import BoundedSemaphore, Lock
 
 from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import FastAPI, HTTPException, Request
@@ -17,6 +17,7 @@ from vf_api.dependencies import Database
 from vf_api.routers.annotations import router as annotations_router
 from vf_api.routers.imports import router as imports_router
 from vf_api.routers.jobs import router as jobs_router
+from vf_api.routers.job_events import router as job_events_router
 from vf_api.routers.auth import router as auth_router
 from vf_api.routers.projects import router as projects_router
 from vf_api.routers.uploads import router as uploads_router
@@ -34,6 +35,7 @@ def create_app(settings: APISettings | None = None) -> FastAPI:
         app.state.settings = settings
         app.state.sessions = make_session_factory(engine)
         app.state.resource_lock = Lock()
+        app.state.job_stream_slots = BoundedSemaphore(32)
         try:
             app.state.dummy_password_hash = hash_password(secrets.token_hex(24))
             yield
@@ -49,7 +51,7 @@ def create_app(settings: APISettings | None = None) -> FastAPI:
         CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE"],
-        allow_headers=["Authorization", "Content-Type"],
+        allow_headers=["Authorization", "Content-Type", "Last-Event-ID"],
     )
     app.include_router(auth_router, prefix="/api/v1")
     app.include_router(projects_router, prefix="/api/v1")
@@ -58,6 +60,7 @@ def create_app(settings: APISettings | None = None) -> FastAPI:
     app.include_router(imports_router, prefix="/api/v1")
     app.include_router(versions_router, prefix="/api/v1")
     app.include_router(jobs_router, prefix="/api/v1")
+    app.include_router(job_events_router, prefix="/api/v1")
 
     @app.middleware("http")
     async def private_api_responses(request: Request, call_next):
