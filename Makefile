@@ -6,7 +6,7 @@ API_PYTHON ?= .venv/bin/python
 ALEMBIC = $(API_PYTHON) -m alembic -c services/api/alembic.ini
 .DEFAULT_GOAL := lint
 
-.PHONY: lint test env up down status check-infra api-env api migrate db-current test-db storage-config worker beat test-uploads
+.PHONY: lint test env up down status check-infra api-env api migrate db-current test-db storage-config worker gpu-worker beat test-uploads
 
 api-env:
 	@test -x $(API_PYTHON) || $(UV) venv --python 3.11.16 .venv
@@ -21,12 +21,15 @@ storage-config:
 worker:
 	PYTHONPATH=services/api:services/worker $(API_PYTHON) -m celery -A vf_worker.app:app worker --loglevel=INFO --queues=cpu --concurrency=2
 
+gpu-worker:
+	PYTHONPATH=services/api:services/worker:packages $(API_PYTHON) -m vf_worker.gpu
+
 beat:
 	@mkdir -p artifacts/celery
 	PYTHONPATH=services/api:services/worker $(API_PYTHON) -m celery -A vf_worker.app:app beat --loglevel=INFO --schedule artifacts/celery/schedule
 
 test-uploads:
-	PYTHONPATH=services/api:services/worker:services/api/tests $(API_PYTHON) -m unittest discover -s services/api/integration_tests -v
+	PYTHONPATH=services/api:services/worker:services/api/tests:packages $(API_PYTHON) -m unittest discover -s services/api/integration_tests -v
 
 migrate:
 	$(ALEMBIC) upgrade head
