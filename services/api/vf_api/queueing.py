@@ -1,4 +1,4 @@
-"""JSON-only CPU queue; thumbnail state remains durable in PostgreSQL."""
+"""JSON-only queues; durable work state remains in PostgreSQL."""
 
 from celery import Celery
 
@@ -6,6 +6,8 @@ from vf_api.settings import QueueSettings
 
 THUMBNAIL_TASK = "visionforge.thumbnails.create"
 RECOVERY_TASK = "visionforge.thumbnails.recover"
+TRAIN_TASK = "visionforge.training.run"
+DISPATCH_TASK = "visionforge.training.dispatch"
 
 
 def make_queue(settings: QueueSettings | None = None) -> Celery:
@@ -13,6 +15,7 @@ def make_queue(settings: QueueSettings | None = None) -> Celery:
     app = Celery("visionforge", broker=settings.broker_url)
     app.conf.update(
         task_default_queue="cpu",
+        task_routes={TRAIN_TASK: {"queue": "gpu"}},
         task_serializer="json",
         accept_content=["json"],
         task_ignore_result=True,
@@ -28,6 +31,10 @@ def make_queue(settings: QueueSettings | None = None) -> Celery:
         },
         task_publish_retry=False,
         beat_schedule={
+            "dispatch-training-jobs": {
+                "task": DISPATCH_TASK,
+                "schedule": 10.0,
+            },
             "recover-missing-thumbnails": {
                 "task": RECOVERY_TASK,
                 "schedule": 60.0,

@@ -10,9 +10,10 @@ from sqlalchemy.exc import OperationalError
 from vf_api.database import make_engine, make_session_factory
 from vf_api.image_files import make_thumbnail
 from vf_api.models import Image
-from vf_api.queueing import RECOVERY_TASK, THUMBNAIL_TASK, make_queue
+from vf_api.queueing import DISPATCH_TASK, RECOVERY_TASK, THUMBNAIL_TASK, make_queue
 from vf_api.settings import QueueSettings, Settings, StorageSettings
 from vf_api.storage import ObjectStore
+from vf_worker.dispatch import dispatch_pending
 
 
 def create_worker(
@@ -23,6 +24,14 @@ def create_worker(
     database = database or Settings()
     storage = storage or StorageSettings()
     app = make_queue(queue)
+
+    @app.task(name=DISPATCH_TASK, shared=False, lazy=False)
+    def dispatch():
+        engine = make_engine(database)
+        try:
+            return dispatch_pending(make_session_factory(engine), app)
+        finally:
+            engine.dispose()
 
     @app.task(
         name=THUMBNAIL_TASK,
