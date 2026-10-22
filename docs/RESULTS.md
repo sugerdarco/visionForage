@@ -367,7 +367,8 @@ depends on the pinned software, hardware, worker count and source revisions.
 - [x] Remote GPU worker integration, model registration, heartbeats and recovery; see [worker operation and real GPU verification](GPU_WORKER.md).
 - [x] Newly queued detector registration under the unchanged ONNX gate and simultaneous real jobs on two GPUs.
 - [x] Live SSE status and epoch progress with reconnect support; see [training events](JOB_EVENTS.md).
-- [ ] Next: model registry browsing and promotion APIs.
+- [x] Owner-scoped model registry list/detail APIs with frozen class maps and training configuration; see [model registry](MODELS.md).
+- [ ] Next: model evaluation reports, artifact downloads and promotion APIs.
 - [ ] Populated-project deletion with object-storage and job cleanup.
 - [ ] Later: active-learning comparison and notebook 03.
 

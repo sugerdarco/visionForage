@@ -21,7 +21,8 @@ The connection is:
 `GET /api/v1/jobs/{id}` now includes `model_id` after successful registration.
 Listing jobs and cancelling a completed job return the same model reference.
 [Live SSE](JOB_EVENTS.md) now reports status, epoch metrics and safe progress
-messages. Registry browsing, promotion and deployment remain separate work.
+messages. [Registry browsing](MODELS.md) now exposes registered model metadata;
+evaluation reads, downloads, promotion and deployment remain separate work.
 
 ## Two Python environments
 

@@ -32,7 +32,9 @@ redelivery are implemented. [Live training events](docs/JOB_EVENTS.md) now strea
 status, epoch metrics and safe progress messages, with reconnect support.
 [Real queued verification](docs/GPU_WORKER.md#real-queued-verification-2026-10-22)
 now confirms detector registration under the unchanged ONNX gate and simultaneous
-training across two GPUs. Model registry browsing and promotion come next.
+training across two GPUs. [Model registry browsing](docs/MODELS.md) now lists
+registered models and exposes their frozen class maps and training configuration.
+Evaluation reports, artifact downloads and promotion come next.
 
 ## Development setup
 

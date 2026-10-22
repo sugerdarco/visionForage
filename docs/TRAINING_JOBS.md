@@ -11,7 +11,8 @@ export, saves epoch metrics and registers successful models. Start that consumer
 to execute queued jobs; a dispatch timestamp does not mean training has begun.
 Stalled-job recovery and lost-message redelivery are implemented. [Live SSE](JOB_EVENTS.md)
 now provides status, epoch metrics and safe progress messages with reconnect
-support. Registry browsing remains pending. Standalone ML scripts remain available.
+support. [Registry browsing](MODELS.md) now lists registered models and their
+training configuration. Standalone ML scripts remain available.
 
 ## Run locally
 
