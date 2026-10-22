@@ -1,14 +1,76 @@
 """Registry reads against PostgreSQL, with frozen metadata and owner isolation."""
 
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 from uuid import uuid4
 
 from job_fixture import JobAPITest
 from sqlalchemy.orm import Session
 
+from sqlalchemy import select
+
 from vf_api.models import Model, Project, TrainingJob
 
 
 class ModelTest(JobAPITest):
+    def promote(self, identifier, headers=None):
+        return self.client.post(
+            f"/api/v1/models/{identifier}/promote",
+            headers=self.headers if headers is None else headers,
+        )
+
+    def test_promotion_switches_default_and_is_retry_safe(self):
+        first, _ = self.add_model(promoted=True)
+        second, _ = self.add_model(version=2)
+        foreign, _ = self.add_model(other=True, promoted=True)
+        response = self.promote(second)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertTrue(response.json()["is_promoted"])
+        self.assertEqual(response.headers["cache-control"], "no-store")
+        self.assertFalse(self.detail(first).json()["is_promoted"])
+        self.assertEqual(self.promote(second).json(), response.json())
+        with Session(self.engine) as session:
+            self.assertTrue(session.get(Model, foreign).is_promoted)
+
+    def test_concurrent_promotions_keep_one_preferred_model(self):
+        identifiers = [self.add_model(version=i)[0] for i in (1, 2)]
+        barrier = Barrier(2)
+
+        def promote(identifier):
+            barrier.wait(timeout=10)
+            return self.promote(identifier)
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            responses = list(pool.map(promote, identifiers))
+        self.assertEqual([r.status_code for r in responses], [200, 200])
+        self.assertTrue(all(r.json()["is_promoted"] for r in responses))
+        with Session(self.engine) as session:
+            selected = list(
+                session.scalars(
+                    select(Model.id).where(
+                        Model.project_id == self.project_id, Model.is_promoted.is_(True)
+                    )
+                )
+            )
+        self.assertEqual(len(selected), 1)
+        self.assertIn(selected[0], identifiers)
+
+    def test_promotion_rejects_foreign_missing_and_unsuccessful_models(self):
+        identifier, job = self.add_model()
+        foreign, _ = self.add_model(other=True)
+        self.assertEqual(self.promote(identifier, {}).status_code, 401)
+        self.assertEqual(
+            self.promote(identifier, self.auth(self.user_id, "refresh")).status_code,
+            401,
+        )
+        self.assertEqual(self.promote(foreign).status_code, 404)
+        self.assertEqual(self.promote(uuid4()).status_code, 404)
+        with Session(self.engine) as session:
+            session.get(TrainingJob, job).status = "failed"
+            session.commit()
+        self.assertEqual(self.promote(identifier).status_code, 409)
+        self.assertFalse(self.detail(identifier).json()["is_promoted"])
+
     def add_model(self, *, version=1, other=False, promoted=False):
         project = self.other_project_id if other else self.project_id
         dataset = self.other_version_id if other else self.version_id

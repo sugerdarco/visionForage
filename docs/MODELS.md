@@ -12,6 +12,7 @@ Both routes require the owner's access bearer token and use `/api/v1`:
 | --- | --- |
 | `GET /projects/{project_id}/models` | Paginated model summaries, newest version first |
 | `GET /models/{model_id}` | One model's metadata, frozen class map and training hyperparameters |
+| `POST /models/{model_id}/promote` | Select this model as the project's preferred model; returns updated detail |
 
 Lists return `items`, `total`, `page` and `page_size`. Pages start at one; page size
 defaults to 20 and is limited to 100. Model versions are unique within a project,
@@ -52,10 +53,24 @@ or raw logs. This keeps the list small and leaves storage authorization to a
 dedicated future download endpoint. Database foreign keys keep these records in
 the same project; HTTP ownership checks restrict reads to its owner.
 
-Final evaluation metrics, parity and latency summaries, authorized artifact
-downloads and model promotion are the next registry increments. These endpoints
-do not yet expose those reports, even though the worker stores them privately.
-Promotion and deployment are separate operations; neither is triggered by reads.
+Final evaluation metrics, parity and latency summaries, and authorized artifact
+downloads are the next registry increments. The read endpoints do not yet expose
+those reports, even though the worker stores them privately.
+
+## Promotion
+
+POST promotion takes no body. It requires a model whose training job succeeded
+and returns 409 otherwise. The API locks the owning project, clears its previous
+preferred model and selects the requested model in one transaction. It shares
+the project's registration lock and keeps the existing database constraint of
+at most one promoted model per project. Different projects remain independent.
+
+Promoting the already preferred model is safe to retry and leaves its timestamps
+unchanged. Concurrent requests serialize; the last serialized promotion determines
+the final default. Each response describes the state at its transaction, which a
+later request can change. The API does not rank candidates or choose a model
+using held-out test results. Promotion does not deploy, restart or change any
+inference endpoint, and no worker/storage access is needed.
 
 ## Checks
 

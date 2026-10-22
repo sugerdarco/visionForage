@@ -4,9 +4,9 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 
-from vf_api.dependencies import CurrentUser, Database, OwnedProject
+from vf_api.dependencies import CurrentUser, Database, OwnedProject, owned_project
 from vf_api.model_schemas import ModelDetail, ModelPage
 from vf_api.models import DatasetVersion, Model, Project, TrainingJob
 
@@ -72,3 +72,29 @@ def read_model(model_id: UUID, session: Database, user: CurrentUser):
     if row is None:
         raise HTTPException(status_code=404, detail="Model not found")
     return ModelDetail.model_validate(row)
+
+
+@router.post("/models/{model_id}/promote", response_model=ModelDetail)
+def promote_model(model_id: UUID, session: Database, user: CurrentUser):
+    target = read_model(model_id, session, user)
+    # Registration uses this same project lock. Always acquire it before changing
+    # model rows so simultaneous promotions serialize without a uniqueness race.
+    owned_project(target.project_id, session, user, lock=True)
+    target = read_model(model_id, session, user)
+    status = session.scalar(
+        select(TrainingJob.status).where(TrainingJob.id == target.job_id)
+    )
+    if status != "succeeded":
+        raise HTTPException(status_code=409, detail="Model training has not succeeded")
+    if not target.is_promoted:
+        session.execute(
+            update(Model)
+            .where(Model.project_id == target.project_id, Model.is_promoted.is_(True))
+            .values(is_promoted=False)
+        )
+        session.execute(
+            update(Model).where(Model.id == model_id).values(is_promoted=True)
+        )
+    result = read_model(model_id, session, user)
+    session.commit()
+    return result
