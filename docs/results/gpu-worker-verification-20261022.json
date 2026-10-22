@@ -1,0 +1,162 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-22",
+  "source_commit": "a872639fba1553391fadee8f5c1aca0f409b1f87",
+  "scope": "Real queued worker qualification; not a replacement quality benchmark or persistent deployment",
+  "jobs": [
+    {
+      "job_id": "d733a29d-299e-40a8-9908-1b134f68fed5",
+      "task_type": "detection",
+      "gpu_index": 4,
+      "status": "succeeded",
+      "epochs_completed": 97,
+      "elapsed_seconds": 1214.389,
+      "started_at": "2026-10-22T09:32:33.745772+00:00",
+      "finished_at": "2026-10-22T09:52:48.134750+00:00",
+      "split_counts": {
+        "train": 881,
+        "val": 189,
+        "test": 189
+      },
+      "registered_models": 1,
+      "metric_rows": 1358,
+      "verified_artifacts": 9,
+      "parity": {
+        "passed": true,
+        "split": "test",
+        "samples": 32,
+        "batch_sizes": [
+          1,
+          8
+        ],
+        "absolute_tolerance": 0.002,
+        "relative_tolerance": 0.0,
+        "max_absolute_error": 0.00067138671875,
+        "box_absolute_tolerance": 0.002,
+        "score_absolute_tolerance": 0.001,
+        "max_box_absolute_error": 0.00067138671875,
+        "max_score_absolute_error": 2.2351741790771484e-06
+      },
+      "artifact_sha256": {
+        "manifest.json": "9caa236d4512c13744cac5361e6383d672fb0eb8f7d21487342a681313f50989",
+        "audit.json": "84a47e6e856f1107a9ff0c8682b864e236f53298dade55451cd40e568dccb801",
+        "run/best.pt": "ccd019c664e04fb19ac6501f9df21cae711a4f253debaf226c20e9212fc00f1b",
+        "run/run.json": "bb2f301b4725c875dca5b09604febe08ff3512f73be1365b8797311b910d8685",
+        "run/history.json": "16bd5b37d1d058bf84569855671171ba3e1620e8e42a219b09d2b56905900ec0",
+        "evaluation.json": "68fa921fd264e26442f57a6596a011a7c079dccec4755d0580aaa067995d2d63",
+        "onnx/model.onnx": "ddf1637de6502af5f056fc46d11c7dff4b580d792cae0f534983baf19ea98af0",
+        "onnx/metadata.json": "30b2b18f555c2eddf62211c6f7099e7eb3f7e68b38e050df217c186f1767afe0",
+        "onnx/verification.json": "26a8fb0ef279a27a9a69e5761b686bd1b6b2f5fdc77683c675b9e9f779ff03f9"
+      }
+    },
+    {
+      "job_id": "14c38611-6763-4afb-bb8c-593b2ab4732d",
+      "task_type": "classification",
+      "gpu_index": 5,
+      "status": "succeeded",
+      "epochs_completed": 5,
+      "elapsed_seconds": 38.04,
+      "started_at": "2026-10-22T09:33:42.077274+00:00",
+      "finished_at": "2026-10-22T09:34:20.117390+00:00",
+      "split_counts": {
+        "val": 48,
+        "train": 224,
+        "test": 48
+      },
+      "registered_models": 1,
+      "metric_rows": 25,
+      "verified_artifacts": 9,
+      "parity": {
+        "passed": true,
+        "split": "test",
+        "samples": 32,
+        "batch_sizes": [
+          1,
+          8
+        ],
+        "absolute_tolerance": 0.001,
+        "relative_tolerance": 0.0,
+        "max_absolute_error": 1.1235475540161133e-05
+      },
+      "artifact_sha256": {
+        "manifest.json": "6035861598bd7dd3a3479faf2c5930dfab2d356bc3d34d14feb496e27784c192",
+        "audit.json": "864a360f294e8e5713e1b8235d360e74ac3086012fdff2c9d68140cb405ce10a",
+        "run/best.pt": "6811b3e80c40746e0270e5c90a8ec48b5117daa4398150ff3ef7a4225d98d696",
+        "run/run.json": "498694d14d1063e7c667d920e0128689d3b7b549927375f30528967b0598acab",
+        "run/history.json": "5287d29b10280c6c8570608a7fba39f34f686b09a6c781fe41ef20478f0b5edb",
+        "evaluation.json": "e4c7c06181204aff240e7624bddd7a7923801e5bce383ade4ddefc685f700ee5",
+        "onnx/model.onnx": "592c29436899ae2c9c57175dfa1ad2ce106d54fee135ea303fb27907e886843c",
+        "onnx/metadata.json": "bef1cdc5d9f77672a67775e64cbd0b7693f554c4112d35601a78817c73926a23",
+        "onnx/verification.json": "461ae9199a57fabc1a9a561156d96e9b7a36363c5bb24b40403f7b95693035ed"
+      }
+    },
+    {
+      "job_id": "a151a128-6722-4eaa-b296-560ed5472b13",
+      "task_type": "classification",
+      "gpu_index": 5,
+      "status": "succeeded",
+      "epochs_completed": 5,
+      "elapsed_seconds": 36.72,
+      "started_at": "2026-10-22T09:34:20.837403+00:00",
+      "finished_at": "2026-10-22T09:34:57.557068+00:00",
+      "split_counts": {
+        "val": 48,
+        "train": 224,
+        "test": 48
+      },
+      "registered_models": 1,
+      "metric_rows": 25,
+      "verified_artifacts": 9,
+      "parity": {
+        "passed": true,
+        "split": "test",
+        "samples": 32,
+        "batch_sizes": [
+          1,
+          8
+        ],
+        "absolute_tolerance": 0.001,
+        "relative_tolerance": 0.0,
+        "max_absolute_error": 1.1235475540161133e-05
+      },
+      "artifact_sha256": {
+        "manifest.json": "88f0953a2a8f565e8e5ffd79c5397e9d434b357677ed82b4409b6a4072fabb3c",
+        "audit.json": "d8773de7f8cae0b938ef77ccb2048369c3aaf16f5fdc6d5d317838b3982f33d3",
+        "run/best.pt": "8bef5491518ae77de97bd5310aac26a8d4285d6cb251b1cfc1246d63844eac52",
+        "run/run.json": "350961bcc44410750299f06683a1a81d68515386f66fa68cdbd133a11aa0d846",
+        "run/history.json": "5287d29b10280c6c8570608a7fba39f34f686b09a6c781fe41ef20478f0b5edb",
+        "evaluation.json": "eada85ec0bc838827c00ebe7bee57db759c3d163f72201021c5016f3248f3e9a",
+        "onnx/model.onnx": "592c29436899ae2c9c57175dfa1ad2ce106d54fee135ea303fb27907e886843c",
+        "onnx/metadata.json": "cb8c158baf61aeffe3491865ca19179dd5a0142439bb57b330a0ea9d431f0c14",
+        "onnx/verification.json": "7bbeee992386d6999dd2f9bbd3f5496c8a6f2151980dad8fb4f9db4db94c4bdc"
+      }
+    }
+  ],
+  "concurrency": {
+    "gpu_indices": [
+      4,
+      5
+    ],
+    "two_gpu_overlap_samples": 14,
+    "nominal_sample_interval_seconds": 2,
+    "sampled_peak_process_gpu_memory_mib": {
+      "4": 4904,
+      "5": 1312
+    },
+    "scope": "Only ML children of the verification workers, identified through their parent processes"
+  },
+  "duplicate_delivery": {
+    "extra_messages_per_job": 1,
+    "models_per_job": [
+      1,
+      1,
+      1
+    ]
+  },
+  "limits": [
+    "Disposable database, private buckets and isolated queue; production startup remains separate work.",
+    "Two GPUs and three jobs verify overlap and sequential reuse, not cluster-scale throughput.",
+    "Memory is sampled process usage, not a device-wide reservation or exact allocation peak.",
+    "Qualification snapshots use only the original baseline training pools, repartitioned 70/15/15."
+  ]
+}

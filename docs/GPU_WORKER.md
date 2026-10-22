@@ -264,10 +264,60 @@ termination of a real child process when its job is recovered.
 These tests do not claim that their synthetic byte artifacts are trained models.
 The existing ML suite separately checks real optimization, evaluation and ONNX.
 
-A real GPU classification integration check completed training, 32-image ONNX
-verification, private artifact upload and model registration. Detector integration
-completed training and test evaluation on a small NEU-DET subset, then correctly
-refused registration because its maximum box difference was 0.00225830078125 pixels,
-above the unchanged 0.002 limit. A successful newly queued detector registration
-under that gate is still unverified. These small integration runs do not replace
-the established quality baselines in [RESULTS.md](RESULTS.md).
+### Real queued verification, 2026-10-22
+
+Both outstanding worker checks passed on source revision
+`a872639fba1553391fadee8f5c1aca0f409b1f87`: a newly queued detector registered
+under the unchanged export gate, and real ML processes ran concurrently on two
+allocated GPUs. The [sanitized result snapshot](results/gpu-worker-verification-20261022.json)
+records job outcomes, timing, parity and artifact SHA-256 values.
+
+| Job | GPU | Completed epochs | Claim to registration | Sampled peak process memory |
+| --- | ---: | ---: | ---: | ---: |
+| YOLOv8s detector | 4 | 97 | 20 min 14 sec | 4,904 MiB |
+| ResNet18 classifier 1 | 5 | 5 | 38.04 sec | 1,312 MiB combined peak for GPU 5 jobs |
+| ResNet18 classifier 2 | 5 | 5 | 36.72 sec | Same GPU 5 measurement |
+
+The detector requested 100 epochs with patience 20 and selected epoch 77 using
+validation fitness; early stopping ended training at epoch 97. Its frozen snapshot
+contained 881 training, 189 validation and 189 test images. Each classifier used
+224/48/48 images. All snapshots were created through the platform snapshot builder
+from original baseline **training pools only**, repartitioned 70/15/15 with seed 42.
+These runs qualify the worker pipeline; they do not replace the established
+quality baselines in [RESULTS.md](RESULTS.md).
+
+Each job passed parity on 32 held-out test images at batches 1 and 8, with zero
+relative tolerance. The detector's maximum box error was **0.00067138671875 pixels**
+against the unchanged **0.002** limit; maximum score error was
+**0.0000022351741790771484** against **0.001**. Both classifiers' maximum logit
+error was **0.000011235475540161133**, below **0.001**. No exporter or gate code
+changed for these runs.
+
+The check used real API job submission, PostgreSQL claims, Redis delivery, remote
+GPU supervisors, ML subprocesses and private MinIO artifact publication. The
+dispatcher task was invoked directly through Celery's eager execution to publish
+messages; GPU consumers received those messages from the real broker. Services
+used a disposable database, private test buckets and an isolated shared queue.
+One extra delivery per job was published while work was live. All three jobs
+registered exactly one model, with 1,358 detector metric rows and 25 rows per
+classifier. All nine artifacts per job were downloaded and their stored checksums
+verified: **27 artifacts total**.
+
+Monitoring identified only the workers' own ML child processes and captured
+**14 samples with both physical GPUs active**, at a nominal two-second interval.
+The classifiers ran sequentially on GPU 5 while the detector occupied GPU 4.
+This verifies actual overlap and reuse of a worker slot, not cluster-scale load
+or an exact memory peak. The two workers used the same work directory and a
+limit of two CPU threads per ML process; remote Docker and sudo were unnecessary.
+
+An earlier small detector integration correctly refused registration at a box
+error of 0.00225830078125 pixels. That failure remains valid; this successful
+fuller training run does not change its result or relax the acceptance criterion.
+Before the successful run, one setup attempt failed on an inaccessible cache path
+and another was stopped to switch to the newly allocated GPUs. Neither is counted
+as a completed training verification.
+
+Temporary workers, their ML children, queue resources, database, buckets and
+remote scratch were cleaned up. Model bundles and diagnostics remain private
+locally; only the allowlisted result summary is committed. This is an isolated
+integration check, not a persistent running deployment.

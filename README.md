@@ -29,8 +29,10 @@ cancellation. The [remote training worker](docs/GPU_WORKER.md) now verifies froz
 inputs, supervises training and export, saves metrics and registers successful
 model artifacts. Worker heartbeats, expired-job recovery and lost-message
 redelivery are implemented. [Live training events](docs/JOB_EVENTS.md) now stream
-status, epoch metrics and safe progress messages, with reconnect support. Model
-registry browsing and promotion come next.
+status, epoch metrics and safe progress messages, with reconnect support.
+[Real queued verification](docs/GPU_WORKER.md#real-queued-verification-2026-10-22)
+now confirms detector registration under the unchanged ONNX gate and simultaneous
+training across two GPUs. Model registry browsing and promotion come next.
 
 ## Development setup
 

@@ -363,7 +363,11 @@ depends on the pinned software, hardware, worker count and source revisions.
 - [x] Annotation reads and atomic saves with ownership checks, task-specific validation, retry-safe replacement and reviewed negative detection images; see [annotation API](ANNOTATIONS.md).
 - [x] ImageFolder, YOLO and COCO ZIP imports with signed uploads, validated labels, stable class indices, conflict protection and CPU thumbnails; see [import API](IMPORTS.md).
 - [x] Frozen dataset versions with deterministic pixel-group splits, immutable private manifests, checksum audit files and owner-scoped create/list/read endpoints; see [dataset versions](DATASET_VERSIONS.md).
-- [ ] Next: training-job APIs and remote GPU worker integration, followed by live SSE progress.
+- [x] Training-job APIs, durable dispatch, cancellation and stored metrics; see [training jobs](TRAINING_JOBS.md).
+- [x] Remote GPU worker integration, model registration, heartbeats and recovery; see [worker operation and real GPU verification](GPU_WORKER.md).
+- [x] Newly queued detector registration under the unchanged ONNX gate and simultaneous real jobs on two GPUs.
+- [x] Live SSE status and epoch progress with reconnect support; see [training events](JOB_EVENTS.md).
+- [ ] Next: model registry browsing and promotion APIs.
 - [ ] Populated-project deletion with object-storage and job cleanup.
 - [ ] Later: active-learning comparison and notebook 03.
 
