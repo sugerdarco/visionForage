@@ -41,7 +41,7 @@ def create_app(settings: APISettings | None = None) -> FastAPI:
             app.state.dummy_password_hash = hash_password(secrets.token_hex(24))
             yield
         finally:
-            for name in ("store", "queue", "datasets"):
+            for name in ("store", "queue", "datasets", "artifacts"):
                 resource = getattr(app.state, name, None)
                 if resource is not None:
                     resource.close()

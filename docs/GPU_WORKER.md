@@ -22,7 +22,8 @@ The connection is:
 Listing jobs and cancelling a completed job return the same model reference.
 [Live SSE](JOB_EVENTS.md) now reports status, epoch metrics and safe progress
 messages. [Registry browsing](MODELS.md) now exposes registered model metadata;
-evaluation reads, downloads, promotion and deployment remain separate work.
+evaluation reads, private downloads and promotion are available through that API.
+Inference and deployment remain separate work.
 
 ## Two Python environments
 

@@ -165,6 +165,19 @@ class ArtifactStore(ObjectStore):
         super().__init__(settings)
         self.bucket = settings.s3_artifacts_bucket
 
+    def download_url(self, key: str, filename: str, content_type: str) -> str:
+        return self.public.generate_presigned_url(
+            "get_object",
+            Params={
+                "Bucket": self.bucket,
+                "Key": key,
+                "ResponseContentDisposition": f'attachment; filename="{filename}"',
+                "ResponseContentType": content_type,
+                "ResponseCacheControl": "private, no-store",
+            },
+            ExpiresIn=READ_SECONDS,
+        )
+
     def put_file_once(self, key, path):
         size = path.stat().st_size
         if not 0 < size <= 1024**3:

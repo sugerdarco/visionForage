@@ -34,7 +34,9 @@ status, epoch metrics and safe progress messages, with reconnect support.
 now confirms detector registration under the unchanged ONNX gate and simultaneous
 training across two GPUs. [Model registry browsing](docs/MODELS.md) now lists
 registered models and exposes their frozen class maps and training configuration.
-Evaluation reports, artifact downloads and promotion come next.
+Owner-scoped evaluation reports, private artifact downloads and model promotion
+are also available. Promotion selects a preferred model; inference and deployment
+remain separate work.
 
 ## Development setup
 

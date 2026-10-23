@@ -32,3 +32,16 @@ class ModelPage(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class ArtifactResponse(BaseModel):
+    name: Literal["weights", "onnx", "metadata"]
+    filename: str
+    content_type: str
+    bytes: int
+    sha256: str
+
+
+class ArtifactDownload(ArtifactResponse):
+    download_url: str
+    expires_in: int

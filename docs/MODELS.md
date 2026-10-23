@@ -1,18 +1,23 @@
 # Model registry
 
 The registry exposes models already registered by successful training workers.
-The API reads PostgreSQL metadata; browsing does not contact the GPU host, load
-weights, sign storage URLs or rerun evaluation. No migration is required.
+Metadata browsing reads PostgreSQL. Evaluation reads use checksummed private
+reports; download requests issue short-lived storage URLs. None of these routes
+contacts the GPU host, loads ML models or reruns evaluation. No migration or
+additional dependency is required.
 
 ## Routes
 
-Both routes require the owner's access bearer token and use `/api/v1`:
+All routes require the owner's access bearer token and use `/api/v1`:
 
 | Method and path | Response |
 | --- | --- |
 | `GET /projects/{project_id}/models` | Paginated model summaries, newest version first |
 | `GET /models/{model_id}` | One model's metadata, frozen class map and training hyperparameters |
 | `POST /models/{model_id}/promote` | Select this model as the project's preferred model; returns updated detail |
+| `GET /models/{model_id}/evaluation` | Typed held-out metrics, ONNX parity and CPU latency |
+| `GET /models/{model_id}/artifacts` | Names, sizes and SHA-256 values for the three downloadable files |
+| `GET /models/{model_id}/artifacts/{artifact}` | A five-minute signed GET URL for `weights`, `onnx` or `metadata` |
 
 Lists return `items`, `total`, `page` and `page_size`. Pages start at one; page size
 defaults to 20 and is limited to 100. Model versions are unique within a project,
@@ -46,16 +51,90 @@ Foreign and nonexistent project/model IDs return 404. Missing, expired or refres
 tokens return 401. Invalid UUIDs or pagination parameters return 422. Successful
 responses use `Cache-Control: no-store`.
 
-Queries select explicit public columns and join the associated project, job and
-dataset version. They do not load the model's potentially large `metrics` JSON
-or return `weights_key`, `onnx_key`, artifact indexes, signed URLs, worker paths
-or raw logs. This keeps the list small and leaves storage authorization to a
-dedicated future download endpoint. Database foreign keys keep these records in
-the same project; HTTP ownership checks restrict reads to its owner.
+Metadata list/detail queries select explicit public columns and join the associated
+project, job and dataset version. They do not load the model's potentially large
+`metrics` JSON or return `weights_key`, `onnx_key`, artifact indexes, signed URLs,
+worker paths or raw logs. Separate evaluation/download routes resolve the stored
+artifact index after checking ownership. Database foreign keys keep associated
+records in the same project.
 
-Final evaluation metrics, parity and latency summaries, and authorized artifact
-downloads are the next registry increments. The read endpoints do not yet expose
-those reports, even though the worker stores them privately.
+## Evaluation reports
+
+The response is a discriminated union with `task_type` set to `classification` or
+`detection`. Both variants include `model_id`, `split: "test"`, `checkpoint_epoch`,
+the frozen `class_map`, `metrics`, `parity`, `latency` and
+`latency_scope: "worker_cpu_model_only"`.
+
+Classification adds `selection_val_loss`. Its metrics include loss, sample count,
+accuracy, macro F1, ROC-AUC/method, positive class, per-class support/precision/
+recall/F1/AUC, and a confusion matrix. Matrix rows are true classes and columns
+are predicted classes, ordered by the frozen class map. Undefined AUC remains
+`null`, not zero. The report's checkpoint epoch can be lower than the requested
+training epochs because checkpoint selection uses validation results.
+
+Detection adds `selection_split: "val"` and numeric `metric_settings`: AP confidence
+floor and IoU thresholds, fixed precision/recall confidence and IoU, NMS IoU, and
+the per-image detection cap. Metrics include `map50`, `map50_95`, fixed-threshold
+micro counts/precision/recall and per-class AP/counts. AP is `null` for a class
+without ground-truth boxes; mAP averages classes with ground truth and is `null`
+when there are none. Support here counts objects, not images. Do not compare
+fixed-threshold precision/recall with a differently configured evaluator.
+
+Parity exposes the sample count, batches, maximum errors and tolerances, without
+private image keys. The existing classifier 0.001 and detector 0.002-box/0.001-score
+gates remain unchanged, with zero relative tolerance. Latency includes batch size,
+warmup/measured counts and mean/p95 milliseconds. It measures ONNX Runtime on the
+**worker host CPU**, excluding image decode, preprocessing, detection NMS, HTTP
+and network time; it is not workstation or deployed-service latency.
+
+The API reads `evaluation.json` and `onnx/verification.json`, at most 32 MiB each.
+It checks their exact byte counts and SHA-256 against the registered artifact
+index, checks manifest/checkpoint/ONNX hash linkage, validates typed metric shapes
+and the stored parity result, and then constructs the public view. It does not
+recompute predictions. Unknown/nested diagnostic fields, runtime identifiers,
+loader audits and private image-key examples are omitted. Confident-mistake image
+previews remain future work; no arbitrary image-storage keys are exposed here.
+
+Missing, corrupted, mismatched or unsupported reports return a generic 409.
+Legacy metadata-only models remain browsable even when a report cannot be read.
+Storage outages return 503. No raw exception or private storage key is included
+in these API error messages.
+
+## Artifact downloads
+
+The listing returns an array of `name`, `filename`, `content_type`, `bytes` and
+`sha256`. It checks registered metadata but does not contact storage or issue
+download permissions. A model without a complete valid downloadable index returns
+409 instead of an invented or incomplete artifact list.
+
+| Artifact name | Registered file | Intended use |
+| --- | --- | --- |
+| `weights` | `run/best.pt` | Retain the trained checkpoint |
+| `onnx` | `onnx/model.onnx` | Use the exported model |
+| `metadata` | `onnx/metadata.json` | Read preprocessing, class map and serving contract |
+
+Request one artifact to get those fields plus `download_url` and `expires_in: 300`.
+GET that URL directly, without the API bearer header. The signed request fixes an
+attachment filename, content type and `private, no-store` cache control. Keep the
+URL private: it contains a storage key and temporary access permission. It remains
+usable until expiry even after local sign-out or a promotion change. Request a new
+URL after expiry; do not edit its host, path or query parameters.
+
+The API only resolves these fixed names. It validates the stored key as the model's
+own `project/jobs/job/attempt-UUID/filename` and checks weight/ONNX references agree
+with the model row. Clients cannot request another bucket, a raw object key, a
+worker path or a log. Download issuance checks object existence and stored size;
+it does **not** reread and hash a potentially 1-GiB binary. Verify the downloaded
+bytes against the returned SHA-256. The existing create-only publication protects
+normal writes, but a privileged storage administrator can still alter an object.
+
+An unknown artifact name returns 404. Missing registered objects, changed sizes
+or invalid indexes return 409; storage failures return 503. An object can still
+become unavailable after a URL is issued. Raw training reports, manifests, audit
+files and worker logs are not part of this download allowlist. Serving metadata
+is the original registered JSON, while the evaluation endpoint is a filtered
+public representation. Artifact SHA-256 values describe the original stored bytes,
+not a filtered evaluation response.
 
 ## Promotion
 
@@ -79,3 +158,10 @@ coverage includes empty results, version ordering, pagination, cross-owner and
 same-owner cross-project isolation, access-token requirements, classification and
 detection metadata, frozen class maps, job/model linking, private-field exclusion
 and generated OpenAPI schemas. These are metadata fixtures, not new GPU runs.
+Promotion checks include concurrent requests, retry behavior and cross-project
+isolation. `make test-uploads` also checks real private MinIO downloads, response
+headers, SHA-256 matching, unsigned/tampered URL rejection, report provenance,
+redaction, read-size bounds, missing objects and storage outages. Fixture binary
+files test transport; they are not trained models. The report reader was also
+validated locally against the retained real detector and two classifier bundles
+from the queued-worker verification, without retraining them.

@@ -368,7 +368,8 @@ depends on the pinned software, hardware, worker count and source revisions.
 - [x] Newly queued detector registration under the unchanged ONNX gate and simultaneous real jobs on two GPUs.
 - [x] Live SSE status and epoch progress with reconnect support; see [training events](JOB_EVENTS.md).
 - [x] Owner-scoped model registry list/detail APIs with frozen class maps and training configuration; see [model registry](MODELS.md).
-- [ ] Next: model evaluation reports, artifact downloads and promotion APIs.
+- [x] Checksummed evaluation reports, private model downloads and concurrent-safe promotion; see [model registry](MODELS.md).
+- [ ] Next: ONNX inference and deployment lifecycle, followed by prediction monitoring and active-learning review.
 - [ ] Populated-project deletion with object-storage and job cleanup.
 - [ ] Later: active-learning comparison and notebook 03.
 
