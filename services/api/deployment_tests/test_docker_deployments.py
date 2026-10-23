@@ -15,11 +15,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from vf_api.deployment_manager import DeploymentManager
+from vf_api.database import make_session_factory
 from vf_api.models import Deployment, Model, TrainingJob
 from vf_api.routers.deployments import get_manager
 from vf_api.settings import DeploymentSettings, StorageSettings
-from vf_api.storage import ArtifactStore
-from vf_api.upload_dependencies import get_artifacts
+from vf_api.storage import ArtifactStore, PredictionStore
+from vf_api.upload_dependencies import get_artifacts, get_predictions
+from vf_worker.predictions import collect_predictions
 
 
 class DockerDeploymentTest(JobAPITest):
@@ -32,6 +34,10 @@ class DockerDeploymentTest(JobAPITest):
         cls.addClassCleanup(cls.store.close)
         cls.store.client.create_bucket(Bucket=cls.store.bucket)
         cls.addClassCleanup(cls.drop_bucket)
+        cls.predictions = PredictionStore(
+            StorageSettings(s3_predictions_bucket=cls.store.bucket)
+        )
+        cls.addClassCleanup(cls.predictions.close)
 
     @classmethod
     def drop_bucket(cls):
@@ -55,10 +61,12 @@ class DockerDeploymentTest(JobAPITest):
             DeploymentSettings(
                 deployment_work_dir=self.directory / "deployments",
                 deployment_namespace="vftest-" + uuid4().hex[:12],
+                prediction_log_dir=self.directory / "predictions",
             )
         )
         self.app.dependency_overrides[get_manager] = lambda: self.manager
         self.app.dependency_overrides[get_artifacts] = lambda: self.store
+        self.app.dependency_overrides[get_predictions] = lambda: self.predictions
         self.addCleanup(self.app.dependency_overrides.clear)
         self.addCleanup(self.clean_deployments)
 
@@ -139,7 +147,10 @@ class DockerDeploymentTest(JobAPITest):
         self.assertEqual(info["HostConfig"]["Memory"], 1536 * 1024**2)
         self.assertEqual(info["HostConfig"]["CapDrop"], ["ALL"])
         self.assertIn("no-new-privileges", info["HostConfig"]["SecurityOpt"])
-        self.assertTrue(all(not mount["RW"] for mount in info["Mounts"]))
+        self.assertEqual(
+            {m["Destination"]: m["RW"] for m in info["Mounts"]},
+            {"/bundle": False, "/outbox": True},
+        )
         self.assertNotIn(created["api_key"], "\n".join(info["Config"]["Env"]))
         self.assertFalse(info["HostConfig"]["PortBindings"])
         self.assertEqual(
@@ -195,6 +206,13 @@ class DockerDeploymentTest(JobAPITest):
         )
         self.assertEqual(prediction.json()["label"], "red")
         self.assertEqual(prediction.json()["model_id"], str(self.model_id))
+        prediction_id = prediction.json()["prediction_id"]
+        event_path = (
+            self.manager.settings.prediction_log_dir
+            / created["id"]
+            / f"{prediction_id}.json"
+        )
+        self.assertTrue(event_path.exists())
         path = f"/api/v1/deployments/{created['id']}"
         self.assertEqual(
             self.client.get(path, headers=self.headers).json()["endpoint_url"],
@@ -205,6 +223,26 @@ class DockerDeploymentTest(JobAPITest):
         )
         self.assertIsNone(self.manager.runtime.inspect(spec))
         self.assertFalse((self.manager.root / created["id"]).exists())
+        # Stopping the model must retain pending logs until the CPU worker commits them.
+        self.assertTrue(event_path.exists())
+        self.assertEqual(
+            collect_predictions(
+                self.manager.settings.prediction_log_dir,
+                make_session_factory(self.engine),
+                self.predictions,
+            )["collected"],
+            1,
+        )
+        self.assertFalse(event_path.exists())
+        stats = self.client.get(path + "/stats", headers=self.headers)
+        self.assertEqual(stats.json()["requests"], 1)
+        self.assertEqual(stats.json()["class_distribution"]["red"], 1)
+        history = self.client.get(path + "/predictions", headers=self.headers).json()
+        self.assertEqual(history["items"][0]["id"], prediction_id)
+        with httpx.Client(timeout=5, trust_env=False) as client:
+            self.assertEqual(
+                client.get(history["items"][0]["image_url"]).content, output.getvalue()
+            )
         with httpx.Client(timeout=5, trust_env=False) as client:
             deadline = time.monotonic() + 10
             while client.post(created["endpoint_url"]).status_code != 404:

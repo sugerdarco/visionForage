@@ -7,7 +7,7 @@ from fastapi import Depends, Request
 
 from vf_api.queueing import make_queue
 from vf_api.settings import StorageSettings
-from vf_api.storage import ArtifactStore, DatasetStore, ObjectStore
+from vf_api.storage import ArtifactStore, DatasetStore, ObjectStore, PredictionStore
 
 
 def get_store(request: Request) -> ObjectStore:
@@ -42,3 +42,13 @@ Storage = Annotated[ObjectStore, Depends(get_store)]
 Queue = Annotated[Celery, Depends(get_queue)]
 Datasets = Annotated[DatasetStore, Depends(get_datasets)]
 Artifacts = Annotated[ArtifactStore, Depends(get_artifacts)]
+
+
+def get_predictions(request: Request) -> PredictionStore:
+    with request.app.state.resource_lock:
+        if not hasattr(request.app.state, "predictions"):
+            request.app.state.predictions = PredictionStore(StorageSettings())
+    return request.app.state.predictions
+
+
+Predictions = Annotated[PredictionStore, Depends(get_predictions)]

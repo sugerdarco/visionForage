@@ -17,7 +17,7 @@ inference-image:
 	docker build -f infra/inference.Dockerfile -t visionforge-inference:0.1.0 .
 
 test-deployments:
-	PYTHONPATH=services/api:services/api/tests:services/inference/tests $(API_PYTHON) -m unittest discover -s services/api/deployment_tests -v
+	PYTHONPATH=services/api:services/worker:services/api/tests:services/inference/tests $(API_PYTHON) -m unittest discover -s services/api/deployment_tests -v
 
 inference-env:
 	@test -x $(INFERENCE_PYTHON) || $(UV) venv --python 3.11.16 .venv-inference

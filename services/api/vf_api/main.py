@@ -19,6 +19,7 @@ from vf_api.routers.imports import router as imports_router
 from vf_api.routers.jobs import router as jobs_router
 from vf_api.routers.models import router as models_router
 from vf_api.routers.deployments import router as deployments_router
+from vf_api.routers.predictions import router as predictions_router
 from vf_api.deployment_runtime import DeploymentUnavailable
 from vf_api.routers.job_events import router as job_events_router
 from vf_api.routers.auth import router as auth_router
@@ -43,7 +44,7 @@ def create_app(settings: APISettings | None = None) -> FastAPI:
             app.state.dummy_password_hash = hash_password(secrets.token_hex(24))
             yield
         finally:
-            for name in ("store", "queue", "datasets", "artifacts"):
+            for name in ("store", "queue", "datasets", "artifacts", "predictions"):
                 resource = getattr(app.state, name, None)
                 if resource is not None:
                     resource.close()
@@ -65,6 +66,7 @@ def create_app(settings: APISettings | None = None) -> FastAPI:
     app.include_router(jobs_router, prefix="/api/v1")
     app.include_router(models_router, prefix="/api/v1")
     app.include_router(deployments_router, prefix="/api/v1")
+    app.include_router(predictions_router, prefix="/api/v1")
     app.include_router(job_events_router, prefix="/api/v1")
 
     @app.middleware("http")
