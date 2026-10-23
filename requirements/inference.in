@@ -1,0 +1,14 @@
+# Separate CPU serving environment. Torch is used only for exact classifier preprocessing.
+torch==2.13.0
+torchvision==0.28.0
+numpy==2.4.6
+pillow==12.3.0
+opencv-python-headless==5.0.0.93
+onnxruntime==1.31.0
+fastapi==0.151.0
+uvicorn==0.54.0
+pydantic-settings==2.16.0
+# Multipart uploads are bounded before they reach image decoding.
+python-multipart==0.0.32
+# HTTP integration checks, using the same client as the control API.
+httpx2==2.15.1
