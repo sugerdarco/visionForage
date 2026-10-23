@@ -1,6 +1,7 @@
 """Database configuration shared by migrations and the application."""
 
 from urllib.parse import quote
+from pathlib import Path
 
 from pydantic import AnyHttpUrl, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -71,3 +72,15 @@ class QueueSettings(EnvironmentSettings):
     def broker_url(self) -> str:
         password = quote(self.redis_password.get_secret_value(), safe="")
         return f"redis://:{password}@{self.redis_host}:{self.redis_port}/0"
+
+
+class DeploymentSettings(EnvironmentSettings):
+    deployment_image: str = "visionforge-inference:0.1.0"
+    deployment_work_dir: Path = Path("artifacts/deployments")
+    deployment_namespace: str = Field(
+        default="visionforge", pattern=r"^[a-z][a-z0-9-]{0,30}$"
+    )
+    deployment_max_active: int = Field(default=2, ge=1, le=8)
+    deployment_cpu_threads: int = Field(default=2, ge=1, le=8)
+    deployment_memory_mb: int = Field(default=1536, ge=512, le=8192)
+    deployment_ready_seconds: int = Field(default=90, ge=5, le=300)
