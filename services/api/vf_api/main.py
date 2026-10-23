@@ -18,6 +18,8 @@ from vf_api.routers.annotations import router as annotations_router
 from vf_api.routers.imports import router as imports_router
 from vf_api.routers.jobs import router as jobs_router
 from vf_api.routers.models import router as models_router
+from vf_api.routers.deployments import router as deployments_router
+from vf_api.deployment_runtime import DeploymentUnavailable
 from vf_api.routers.job_events import router as job_events_router
 from vf_api.routers.auth import router as auth_router
 from vf_api.routers.projects import router as projects_router
@@ -62,6 +64,7 @@ def create_app(settings: APISettings | None = None) -> FastAPI:
     app.include_router(versions_router, prefix="/api/v1")
     app.include_router(jobs_router, prefix="/api/v1")
     app.include_router(models_router, prefix="/api/v1")
+    app.include_router(deployments_router, prefix="/api/v1")
     app.include_router(job_events_router, prefix="/api/v1")
 
     @app.middleware("http")
@@ -88,6 +91,12 @@ def create_app(settings: APISettings | None = None) -> FastAPI:
     @app.exception_handler(OperationalError)
     async def database_unavailable(request: Request, error: OperationalError):
         return JSONResponse(status_code=503, content={"detail": "Database unavailable"})
+
+    @app.exception_handler(DeploymentUnavailable)
+    async def deployment_unavailable(request: Request, error: Exception):
+        return JSONResponse(
+            status_code=503, content={"detail": "Deployment runtime unavailable"}
+        )
 
     async def storage_unavailable(request: Request, error: Exception):
         return JSONResponse(
