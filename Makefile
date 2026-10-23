@@ -8,7 +8,10 @@ INFERENCE_ENV_FILE ?= services/inference/.env
 ALEMBIC = $(API_PYTHON) -m alembic -c services/api/alembic.ini
 .DEFAULT_GOAL := lint
 
-.PHONY: lint test env up down status check-infra api-env api migrate db-current test-db storage-config worker gpu-worker beat test-uploads inference-env inference test-inference inference-image test-deployments
+.PHONY: lint test env up down status check-infra api-env api migrate db-current test-db storage-config worker gpu-worker beat test-uploads inference-env inference test-inference inference-image test-deployments gateway
+
+gateway:
+	$(COMPOSE) up -d --wait --wait-timeout 60 traefik
 
 inference-image:
 	docker build -f infra/inference.Dockerfile -t visionforge-inference:0.1.0 .
@@ -62,7 +65,7 @@ env:
 	$(PYTHON) scripts/setup_local_env.py
 
 up:
-	$(COMPOSE) up -d --build --wait --wait-timeout 120 postgres redis minio
+	$(COMPOSE) up -d --build --wait --wait-timeout 120 postgres redis minio traefik
 	$(COMPOSE) run --rm --no-deps storage-init
 
 down:

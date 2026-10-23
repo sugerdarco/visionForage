@@ -1,6 +1,40 @@
 name: visionforge
 
 services:
+  traefik:
+    image: traefik:v3.7.16@sha256:c8a121e4bb1347e8fd52657fab12f2cb70b68f8a018895e2068f92c9e519b9c2
+    command:
+      - --entrypoints.inference.address=:8000
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=${DEPLOYMENT_NETWORK:-visionforge_inference}
+      - '--providers.docker.constraints=Label(`io.visionforge.gateway`, `${DEPLOYMENT_NETWORK:-visionforge_inference}`)'
+      - --api.dashboard=false
+      - --serverstransport.forwardingtimeouts.dialtimeout=2s
+      - --ping=true
+      - --log.level=ERROR
+    ports:
+      - "127.0.0.1:${TRAEFIK_PORT:-8080}:8000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks: [inference]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 128m
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "2"
+    healthcheck:
+      test: [CMD, traefik, healthcheck, --ping]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
   postgres:
     image: postgres:16.15-bookworm@sha256:0ea6700a3b4f0ae6ce746519073558aed4d88a79d8d07622a9a644946c7319c4
     environment:
@@ -72,6 +106,10 @@ services:
       - |
         mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" >/dev/null
         mc mb --ignore-existing local/vf-images local/vf-datasets local/vf-artifacts local/vf-predictions
+
+networks:
+  inference:
+    name: ${DEPLOYMENT_NETWORK:-visionforge_inference}
 
 volumes:
   pg_data:
