@@ -1,6 +1,6 @@
 # Local application services
 
-PostgreSQL, Redis and MinIO run in local Docker Compose. The remote GPU machine
+PostgreSQL, Redis, MinIO and Traefik run in local Docker Compose. The remote GPU machine
 runs training in its existing user-owned Python environment; it needs neither
 sudo nor Docker. This follows our available machines rather than the original
 plan's assumption that the whole stack runs on the GPU server.
@@ -10,6 +10,7 @@ plan's assumption that the whole stack runs on the GPU server.
 | PostgreSQL 16 | Users, projects, labels, job status and metrics | Transactions and relationships fit this data; a shared server supports API and worker processes better than a local SQLite file. |
 | MinIO | Images, frozen manifests, weights and ONNX files | The S3 interface supports direct uploads and future S3 storage. Large binaries stay outside database rows. |
 | Redis 7 | Celery queues and live job notifications | Fits the Celery workers and SSE event stream. PostgreSQL remains the durable source of job status. |
+| Traefik 3 | Stable prediction routes to inference containers | Docker label discovery connects newly deployed models without changing proxy files; see [deployments](DEPLOYMENTS.md). |
 
 The storage and queue services have health checks and private buckets. The first
 database migration is available in [DATABASE.md](DATABASE.md). The local FastAPI
@@ -73,6 +74,7 @@ Rerunning bootstrap keeps existing data and bucket policies.
 | Redis | `127.0.0.1:6379` | `redis:6379` |
 | MinIO S3 API | `http://127.0.0.1:9000` | `http://minio:9000` |
 | MinIO console | `http://127.0.0.1:9001` | `http://minio:9001` |
+| Prediction gateway | `http://127.0.0.1:8080/predict/{slug}` | `http://traefik:8000/predict/{slug}` on the inference network |
 
 Log into the console with `MINIO_ROOT_USER` and `MINIO_ROOT_PASSWORD` from `.env`.
 Change the host port variables in `.env` if another local service uses a port.

@@ -33,6 +33,9 @@ class FakeRuntime:
     def image(self):
         return "sha256:" + "1" * 64
 
+    def route_ready(self, info, spec):
+        return True
+
     def inspect(self, spec):
         return self.containers.get(spec["id"])
 
@@ -296,6 +299,17 @@ class DeploymentTest(JobAPITest):
             response = self.stop(identifier)
         self.assertEqual(response.status_code, 503)
         self.assertNotIn("private-runtime-sentinel", response.text)
+        self.assertEqual(self.listing().json()["items"][0]["status"], "running")
+
+    def test_gateway_outage_keeps_healthy_model_running(self):
+        identifier = UUID(self.deploy().json()["id"])
+        self.runtime.containers[identifier]["Config"] = {
+            "Labels": {"traefik.enable": "true"}
+        }
+        with patch.object(self.runtime, "route_ready", return_value=False):
+            response = self.get(identifier)
+        self.assertEqual(response.status_code, 503)
+        self.assertIn(identifier, self.runtime.containers)
         self.assertEqual(self.listing().json()["items"][0]["status"], "running")
 
     def test_reservation_gap_keeps_starting_and_concurrent_stops_are_safe(self):

@@ -57,7 +57,7 @@ class DeploymentManager:
         while time.monotonic() < deadline:
             check()
             info = self.runtime.inspect(spec)
-            if self.runtime.healthy(info):
+            if self.runtime.healthy(info) and self.runtime.route_ready(info, spec):
                 return info
             if info is None or not info.get("State", {}).get("Running"):
                 raise DeploymentUnavailable("Inference startup failed")

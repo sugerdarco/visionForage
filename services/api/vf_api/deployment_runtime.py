@@ -2,6 +2,8 @@
 
 import json
 import subprocess
+from urllib.error import HTTPError, URLError
+from urllib.request import ProxyHandler, Request, build_opener
 
 
 class DeploymentUnavailable(RuntimeError):
@@ -39,6 +41,7 @@ class DockerRuntime:
         }
 
     def image(self):
+        self.command("network", "inspect", self.settings.deployment_network)
         return self.command(
             "image", "inspect", "--format", "{{.Id}}", self.settings.deployment_image
         )
@@ -78,9 +81,35 @@ class DockerRuntime:
             "INFERENCE_API_KEY_SHA256": spec["key_hash"],
             "INFERENCE_CPU_THREADS": str(self.settings.deployment_cpu_threads),
         }
+        name = self.name(spec["id"])
+        router = f"traefik.http.routers.{name}"
+        service = f"traefik.http.services.{name}"
+        headers = f"traefik.http.middlewares.{name}.headers"
+        routing = {
+            "traefik.enable": "true",
+            "traefik.docker.network": self.settings.deployment_network,
+            "io.visionforge.gateway": self.settings.deployment_network,
+            "io.visionforge.endpoint": f"{str(self.settings.deployment_gateway_url).rstrip('/')}/predict/{spec['slug']}",
+            f"{router}.rule": f"Path(`/predict/{spec['slug']}`)",
+            f"{router}.entrypoints": "inference",
+            f"{router}.service": name,
+            f"{router}.middlewares": name,
+            f"{service}.loadbalancer.server.port": "8000",
+            f"{headers}.customresponseheaders.X-VisionForge-Deployment": str(
+                spec["id"]
+            ),
+            f"{headers}.accesscontrolalloworiginlist": ",".join(
+                str(origin).rstrip("/")
+                for origin in self.settings.deployment_cors_origins
+            ),
+            f"{headers}.accesscontrolallowmethods": "POST,OPTIONS",
+            f"{headers}.accesscontrolallowheaders": "Content-Type,X-API-Key",
+            f"{headers}.accesscontrolmaxage": "600",
+            f"{headers}.addvaryheader": "true",
+        }
         labels = [
             argument
-            for k, v in self.labels(spec).items()
+            for k, v in {**self.labels(spec), **routing}.items()
             for argument in ("--label", f"{k}={v}")
         ]
         self.command(
@@ -109,8 +138,8 @@ class DockerRuntime:
             "max-size=10m",
             "--log-opt",
             "max-file=2",
-            "--publish",
-            "127.0.0.1::8000",
+            "--network",
+            self.settings.deployment_network,
             "--mount",
             f"type=bind,src={bundle},dst=/bundle,readonly",
             "--env-file",
@@ -136,6 +165,16 @@ class DockerRuntime:
     @staticmethod
     def endpoint(info, slug):
         try:
+            labels = info.get("Config", {}).get("Labels") or {}
+            if labels.get("traefik.enable") == "true":
+                network = labels["traefik.docker.network"]
+                if network not in info["NetworkSettings"]["Networks"]:
+                    raise ValueError()
+                endpoint = labels["io.visionforge.endpoint"]
+                if not endpoint.endswith(f"/predict/{slug}"):
+                    raise ValueError()
+                return endpoint
+            # Keep existing deployments readable/stoppable until recreated.
             bindings = info["NetworkSettings"]["Ports"]["8000/tcp"]
             if len(bindings) != 1 or bindings[0]["HostIp"] != "127.0.0.1":
                 raise ValueError()
@@ -145,6 +184,21 @@ class DockerRuntime:
             return f"http://127.0.0.1:{port}/predict/{slug}"
         except (ValueError, KeyError, IndexError, TypeError):
             raise DeploymentUnavailable("Invalid endpoint binding") from None
+
+    def route_ready(self, info, spec):
+        request = Request(self.endpoint(info, spec["slug"]), data=b"", method="POST")
+        try:
+            with build_opener(ProxyHandler({})).open(request, timeout=2):
+                return False
+        except HTTPError as error:
+            try:
+                return error.code == 401 and error.headers.get(
+                    "X-VisionForge-Deployment"
+                ) == str(spec["id"])
+            finally:
+                error.close()
+        except (URLError, OSError):
+            return False
 
     @staticmethod
     def healthy(info):

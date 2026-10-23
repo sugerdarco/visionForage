@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 import unittest
 from unittest.mock import patch
+from urllib.error import HTTPError
 from uuid import uuid4
 
 from vf_api.deployment_runtime import DeploymentUnavailable, DockerRuntime
@@ -88,7 +89,7 @@ class RuntimeTest(unittest.TestCase):
         self.assertEqual(args[-1], "sha256:image")
         for flag, value in (
             ("--cap-drop", "ALL"),
-            ("--publish", "127.0.0.1::8000"),
+            ("--network", "visionforge_inference"),
             ("--memory", "1536m"),
             ("--memory-swap", "1536m"),
             ("--cpus", "2"),
@@ -96,6 +97,12 @@ class RuntimeTest(unittest.TestCase):
         ):
             self.assertEqual(args[args.index(flag) + 1], value)
         self.assertIn("--read-only", args)
+        self.assertNotIn("--publish", args)
+        self.assertIn("traefik.enable=true", args)
+        self.assertIn(
+            f"traefik.http.routers.{self.runtime.name(spec['id'])}.rule=Path(`/predict/test`)",
+            args,
+        )
         self.assertEqual(
             args[args.index("--mount") + 1],
             "type=bind,src=/private/bundle,dst=/bundle,readonly",
@@ -103,3 +110,35 @@ class RuntimeTest(unittest.TestCase):
         env = command.call_args.kwargs["input"].splitlines()
         self.assertEqual(len(env), 8)
         self.assertTrue(all(line.startswith("INFERENCE_") for line in env))
+
+    def test_route_probe_requires_expected_deployment_and_auth_rejection(self):
+        spec = {**self.spec, "slug": "test"}
+        info = {
+            "Config": {
+                "Labels": {
+                    "traefik.enable": "true",
+                    "traefik.docker.network": "serving",
+                    "io.visionforge.endpoint": "http://127.0.0.1:8080/predict/test",
+                }
+            },
+            "NetworkSettings": {"Networks": {"serving": {}}},
+        }
+        self.assertEqual(
+            self.runtime.endpoint(info, "test"), "http://127.0.0.1:8080/predict/test"
+        )
+        with self.assertRaises(DeploymentUnavailable):
+            self.runtime.endpoint(info, "another-model")
+        for code, identifier, expected in (
+            (401, str(spec["id"]), True),
+            (404, str(spec["id"]), False),
+            (401, str(uuid4()), False),
+        ):
+            with patch("vf_api.deployment_runtime.build_opener") as opener:
+                opener.return_value.open.side_effect = HTTPError(
+                    "http://test",
+                    code,
+                    "probe",
+                    {"X-VisionForge-Deployment": identifier},
+                    None,
+                )
+                self.assertEqual(self.runtime.route_ready(info, spec), expected)

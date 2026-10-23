@@ -1,6 +1,7 @@
 """Opt-in checks against local Docker, PostgreSQL and private S3 storage."""
 
 import io
+import time
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
@@ -140,16 +141,58 @@ class DockerDeploymentTest(JobAPITest):
         self.assertIn("no-new-privileges", info["HostConfig"]["SecurityOpt"])
         self.assertTrue(all(not mount["RW"] for mount in info["Mounts"]))
         self.assertNotIn(created["api_key"], "\n".join(info["Config"]["Env"]))
+        self.assertFalse(info["HostConfig"]["PortBindings"])
+        self.assertEqual(
+            created["endpoint_url"],
+            f"{str(self.manager.settings.deployment_gateway_url).rstrip('/')}/predict/{created['slug']}",
+        )
         output = io.BytesIO()
         Image.new("RGB", (48, 24), "red").save(output, format="PNG")
         with httpx.Client(timeout=30, trust_env=False) as client:
             self.assertEqual(client.post(created["endpoint_url"]).status_code, 401)
+            preflight = client.options(
+                created["endpoint_url"],
+                headers={
+                    "Origin": "http://localhost:3000",
+                    "Access-Control-Request-Method": "POST",
+                    "Access-Control-Request-Headers": "X-API-Key,Content-Type",
+                },
+            )
+            self.assertEqual(preflight.status_code, 200)
+            self.assertEqual(
+                preflight.headers["access-control-allow-origin"],
+                "http://localhost:3000",
+            )
+            rejected = client.options(
+                created["endpoint_url"],
+                headers={
+                    "Origin": "https://untrusted.example",
+                    "Access-Control-Request-Method": "POST",
+                },
+            )
+            self.assertNotIn("access-control-allow-origin", rejected.headers)
+            self.assertEqual(
+                client.post(created["endpoint_url"] + "/extra").status_code, 404
+            )
+            self.assertEqual(
+                client.get(
+                    str(self.manager.settings.deployment_gateway_url).rstrip("/")
+                    + "/docs"
+                ).status_code,
+                404,
+            )
             prediction = client.post(
                 created["endpoint_url"],
-                headers={"X-API-Key": created["api_key"]},
+                headers={
+                    "X-API-Key": created["api_key"],
+                    "Origin": "http://localhost:3000",
+                },
                 files={"image": ("red.png", output.getvalue(), "image/png")},
             )
         self.assertEqual(prediction.status_code, 200, prediction.text)
+        self.assertEqual(
+            prediction.headers["access-control-allow-origin"], "http://localhost:3000"
+        )
         self.assertEqual(prediction.json()["label"], "red")
         self.assertEqual(prediction.json()["model_id"], str(self.model_id))
         path = f"/api/v1/deployments/{created['id']}"
@@ -162,6 +205,45 @@ class DockerDeploymentTest(JobAPITest):
         )
         self.assertIsNone(self.manager.runtime.inspect(spec))
         self.assertFalse((self.manager.root / created["id"]).exists())
+        with httpx.Client(timeout=5, trust_env=False) as client:
+            deadline = time.monotonic() + 10
+            while client.post(created["endpoint_url"]).status_code != 404:
+                self.assertLess(
+                    time.monotonic(), deadline, "Stopped route was not removed"
+                )
+                time.sleep(0.2)
+
+    def test_two_routes_keep_keys_separate_and_stopping_one_preserves_other(self):
+        self.publish()
+        first, second = self.deploy(), self.deploy()
+        self.assertEqual(first["status"], "running")
+        self.assertEqual(second["status"], "running")
+        image = io.BytesIO()
+        Image.new("RGB", (32, 32), "green").save(image, format="PNG")
+        with httpx.Client(timeout=30, trust_env=False) as client:
+            self.assertEqual(
+                client.post(
+                    first["endpoint_url"], headers={"X-API-Key": second["api_key"]}
+                ).status_code,
+                401,
+            )
+            self.assertEqual(
+                client.post(
+                    second["endpoint_url"], headers={"X-API-Key": first["api_key"]}
+                ).status_code,
+                401,
+            )
+            stopped = self.client.delete(
+                f"/api/v1/deployments/{first['id']}", headers=self.headers
+            )
+            self.assertEqual(stopped.json()["status"], "stopped")
+            result = client.post(
+                second["endpoint_url"],
+                headers={"X-API-Key": second["api_key"]},
+                files={"image": ("green.png", image.getvalue(), "image/png")},
+            )
+            self.assertEqual(result.status_code, 200, result.text)
+            self.assertEqual(result.json()["label"], "green")
 
     def test_container_exit_reconciles_to_failed(self):
         self.publish()

@@ -3,7 +3,7 @@
 from urllib.parse import quote
 from pathlib import Path
 
-from pydantic import AnyHttpUrl, Field, SecretStr
+from pydantic import AnyHttpUrl, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import URL
 
@@ -75,6 +75,13 @@ class QueueSettings(EnvironmentSettings):
 
 
 class DeploymentSettings(EnvironmentSettings):
+    deployment_network: str = Field(
+        default="visionforge_inference", pattern=r"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,62}$"
+    )
+    deployment_gateway_url: AnyHttpUrl = "http://127.0.0.1:8080"
+    deployment_cors_origins: list[AnyHttpUrl] = Field(
+        default_factory=lambda: ["http://localhost:3000", "http://127.0.0.1:3000"]
+    )
     deployment_image: str = "visionforge-inference:0.1.0"
     deployment_work_dir: Path = Path("artifacts/deployments")
     deployment_namespace: str = Field(
@@ -84,3 +91,18 @@ class DeploymentSettings(EnvironmentSettings):
     deployment_cpu_threads: int = Field(default=2, ge=1, le=8)
     deployment_memory_mb: int = Field(default=1536, ge=512, le=8192)
     deployment_ready_seconds: int = Field(default=90, ge=5, le=300)
+
+    @field_validator("deployment_gateway_url")
+    @classmethod
+    def gateway_origin(cls, value):
+        if (
+            value.username
+            or value.password
+            or value.query
+            or value.fragment
+            or value.path not in (None, "/")
+        ):
+            raise ValueError(
+                "Use an HTTP origin without credentials, path, query or fragment"
+            )
+        return value

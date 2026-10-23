@@ -3,8 +3,8 @@
 The inference service loads one registered model bundle and serves CPU predictions
 through FastAPI. It is separate from the control API and GPU worker. Run it manually
 as described below or use the [Docker deployment API](DEPLOYMENTS.md) for automatic
-bundle download and create/status/stop. Traefik routing and prediction persistence
-are still pending.
+bundle download, create/status/stop and stable Traefik routes. Prediction persistence
+is still pending.
 
 The request path is: authenticated multipart upload → bounded image validation →
 saved preprocessing → ONNX Runtime → classification probabilities or detector
@@ -173,6 +173,7 @@ Additional local checks used the retained real queued-worker bundles:
 
 These are serving compatibility checks, not new quality or latency benchmarks.
 [Docker packaging and deployment create/status/stop](DEPLOYMENTS.md) now include
-automatic verified bundle preparation and one-time endpoint keys. Key rotation,
-routing, prediction logging and the browser playground remain pending. There is
-no public ingress or browser CORS policy in this standalone service yet.
+automatic verified bundle preparation, one-time endpoint keys and Traefik routing
+with browser CORS support. Prediction logging and the browser playground remain
+pending. The standalone service itself has no CORS middleware; deployed browser
+clients use the gateway described in the deployment guide.

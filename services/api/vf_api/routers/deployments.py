@@ -219,6 +219,13 @@ def read_deployment(
     info = manager.runtime.inspect(spec)
     endpoint = None
     if row.status in ("starting", "running") and manager.runtime.healthy(info):
+        if (info.get("Config", {}).get("Labels") or {}).get(
+            "traefik.enable"
+        ) == "true" and not manager.runtime.route_ready(
+            info, {**spec, "slug": row.slug}
+        ):
+            # Gateway outages must not remove an otherwise healthy model.
+            raise DeploymentUnavailable("Deployment route unavailable")
         endpoint = manager.runtime.endpoint(info, row.slug)
         row.container_id, row.status = info["Id"], "running"
     elif (
