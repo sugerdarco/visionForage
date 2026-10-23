@@ -38,7 +38,9 @@ Owner-scoped evaluation reports, private artifact downloads and model promotion
 are also available. Promotion selects a preferred model without deploying it.
 A [local ONNX inference service](docs/INFERENCE.md) now
 serves verified classification/detection bundles with API-key authentication and
-bounded image uploads. Automatic deployment and prediction logging come next.
+bounded image uploads. [Local Docker deployments](docs/DEPLOYMENTS.md) now download
+verified bundles and provide create/status/stop APIs with one-time endpoint keys.
+Traefik routing and prediction logging come next.
 
 ## Development setup
 

@@ -8,7 +8,13 @@ INFERENCE_ENV_FILE ?= services/inference/.env
 ALEMBIC = $(API_PYTHON) -m alembic -c services/api/alembic.ini
 .DEFAULT_GOAL := lint
 
-.PHONY: lint test env up down status check-infra api-env api migrate db-current test-db storage-config worker gpu-worker beat test-uploads inference-env inference test-inference
+.PHONY: lint test env up down status check-infra api-env api migrate db-current test-db storage-config worker gpu-worker beat test-uploads inference-env inference test-inference inference-image test-deployments
+
+inference-image:
+	docker build -f infra/inference.Dockerfile -t visionforge-inference:0.1.0 .
+
+test-deployments:
+	PYTHONPATH=services/api:services/api/tests:services/inference/tests $(API_PYTHON) -m unittest discover -s services/api/deployment_tests -v
 
 inference-env:
 	@test -x $(INFERENCE_PYTHON) || $(UV) venv --python 3.11.16 .venv-inference

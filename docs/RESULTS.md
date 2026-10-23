@@ -370,7 +370,8 @@ depends on the pinned software, hardware, worker count and source revisions.
 - [x] Owner-scoped model registry list/detail APIs with frozen class maps and training configuration; see [model registry](MODELS.md).
 - [x] Checksummed evaluation reports, private model downloads and concurrent-safe promotion; see [model registry](MODELS.md).
 - [x] Standalone CPU ONNX inference with authenticated bounded uploads, saved preprocessing and real-model HTTP compatibility checks; see [inference setup](INFERENCE.md).
-- [ ] Next: inference container packaging and deployment lifecycle, followed by prediction monitoring and active-learning review.
+- [x] Inference Docker image, verified bundle preparation, owner-scoped deployment create/list/status/stop and one-time endpoint keys; see [local deployments](DEPLOYMENTS.md).
+- [ ] Next: Traefik routing and prediction persistence/monitoring, followed by active-learning review.
 - [ ] Populated-project deletion with object-storage and job cleanup.
 - [ ] Later: active-learning comparison and notebook 03.
 

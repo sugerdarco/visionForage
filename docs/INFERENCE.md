@@ -1,9 +1,10 @@
 # Local ONNX inference service
 
 The inference service loads one registered model bundle and serves CPU predictions
-through FastAPI. It is separate from the control API and GPU worker. This increment
-provides a locally runnable service; Docker packaging, automatic bundle download,
-deployment lifecycle, Traefik routing and prediction persistence are still pending.
+through FastAPI. It is separate from the control API and GPU worker. Run it manually
+as described below or use the [Docker deployment API](DEPLOYMENTS.md) for automatic
+bundle download and create/status/stop. Traefik routing and prediction persistence
+are still pending.
 
 The request path is: authenticated multipart upload → bounded image validation →
 saved preprocessing → ONNX Runtime → classification probabilities or detector
@@ -24,8 +25,8 @@ Fill the private environment file before starting. Obtain the `onnx` and `metada
 downloads and their SHA-256 values from the [model registry](MODELS.md). Place the
 files together as `model.onnx` and `metadata.json` in a private bundle directory.
 Use the registered model ID and version, not its training job ID. The standalone
-service trusts this operator-supplied identity; a deployment manager will bind it
-to the registry later. It has no database or storage credentials.
+service trusts this operator-supplied identity; the deployment API binds it to the
+registry automatically. It has no database or storage credentials.
 
 Generate a random endpoint key locally and retain it privately. For example:
 
@@ -171,7 +172,7 @@ Additional local checks used the retained real queued-worker bundles:
   temporary servers were stopped afterward. Private logs and binaries stay outside Git.
 
 These are serving compatibility checks, not new quality or latency benchmarks.
-Docker packaging, automatic bundle preparation, deployment create/status/stop,
-API-key lifecycle, routing, prediction logging and the browser playground remain
-the next increments. There is no public ingress or browser CORS policy in this
-standalone service yet.
+[Docker packaging and deployment create/status/stop](DEPLOYMENTS.md) now include
+automatic verified bundle preparation and one-time endpoint keys. Key rotation,
+routing, prediction logging and the browser playground remain pending. There is
+no public ingress or browser CORS policy in this standalone service yet.
