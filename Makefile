@@ -3,10 +3,22 @@ UV ?= uv
 RUFF ?= $(UV) tool run --from ruff==0.14.1 ruff
 COMPOSE = docker compose --env-file .env -f infra/compose.yml
 API_PYTHON ?= .venv/bin/python
+INFERENCE_PYTHON ?= .venv-inference/bin/python
+INFERENCE_ENV_FILE ?= services/inference/.env
 ALEMBIC = $(API_PYTHON) -m alembic -c services/api/alembic.ini
 .DEFAULT_GOAL := lint
 
-.PHONY: lint test env up down status check-infra api-env api migrate db-current test-db storage-config worker gpu-worker beat test-uploads
+.PHONY: lint test env up down status check-infra api-env api migrate db-current test-db storage-config worker gpu-worker beat test-uploads inference-env inference test-inference
+
+inference-env:
+	@test -x $(INFERENCE_PYTHON) || $(UV) venv --python 3.11.16 .venv-inference
+	$(UV) pip sync --python $(INFERENCE_PYTHON) --torch-backend cpu requirements/inference.txt
+
+inference:
+	PYTHONPATH=services/inference:packages $(INFERENCE_PYTHON) -m uvicorn vf_inference.main:create_app --factory --env-file $(INFERENCE_ENV_FILE) --host 127.0.0.1 --port 8010
+
+test-inference:
+	OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 PYTHONPATH=services/inference:packages $(INFERENCE_PYTHON) -m unittest discover -s services/inference/tests -v
 
 api-env:
 	@test -x $(API_PYTHON) || $(UV) venv --python 3.11.16 .venv

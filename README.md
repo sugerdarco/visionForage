@@ -35,8 +35,10 @@ now confirms detector registration under the unchanged ONNX gate and simultaneou
 training across two GPUs. [Model registry browsing](docs/MODELS.md) now lists
 registered models and exposes their frozen class maps and training configuration.
 Owner-scoped evaluation reports, private artifact downloads and model promotion
-are also available. Promotion selects a preferred model; inference and deployment
-remain separate work.
+are also available. Promotion selects a preferred model without deploying it.
+A [local ONNX inference service](docs/INFERENCE.md) now
+serves verified classification/detection bundles with API-key authentication and
+bounded image uploads. Automatic deployment and prediction logging come next.
 
 ## Development setup
 
