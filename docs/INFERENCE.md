@@ -3,8 +3,8 @@
 The inference service loads one registered model bundle and serves CPU predictions
 through FastAPI. It is separate from the control API and GPU worker. Run it manually
 as described below or use the [Docker deployment API](DEPLOYMENTS.md) for automatic
-bundle download, create/status/stop and stable Traefik routes. Prediction persistence
-is still pending.
+bundle download, create/status/stop and stable Traefik routes. Deployed models also
+support [durable prediction logging and monitoring](MONITORING.md).
 
 The request path is: authenticated multipart upload → bounded image validation →
 saved preprocessing → ONNX Runtime → classification probabilities or detector
@@ -89,11 +89,12 @@ Both response types include `request_id`, `model_id`, `model_version` and
 `latency_ms`. Classification adds `label`, `confidence` and a `scores` mapping in
 frozen class order. Detection adds `boxes`, each with `label`, `confidence` and
 normalized **top-left** `x`, `y`, `w`, `h` in the original image coordinate system.
-An empty `boxes` array is a valid result. No image is saved by this service.
+An empty `boxes` array is a valid result. Deployed services also queue the image
+and output for durable collection.
 
-`request_id` is a transient request identifier. It is deliberately not called
-`prediction_id`: no prediction row exists yet. Persistence, review routing and
-monitoring aggregates will be added with deployment integration. The measured
+Standalone `request_id` is transient. Deployed services also return a matching
+`prediction_id` after durably queuing the image and result for collection into
+MinIO/PostgreSQL; see [logging behavior](MONITORING.md). The measured
 latency includes decoding, preprocessing, model execution and postprocessing,
 starting after upload parsing. It excludes upload/network time and is distinct
 from the registry's model-only ONNX benchmark.
@@ -174,6 +175,6 @@ Additional local checks used the retained real queued-worker bundles:
 These are serving compatibility checks, not new quality or latency benchmarks.
 [Docker packaging and deployment create/status/stop](DEPLOYMENTS.md) now include
 automatic verified bundle preparation, one-time endpoint keys and Traefik routing
-with browser CORS support. Prediction logging and the browser playground remain
-pending. The standalone service itself has no CORS middleware; deployed browser
+with browser CORS support, prediction logging and monitoring APIs. The browser
+playground remains pending. The standalone service itself has no CORS middleware; deployed browser
 clients use the gateway described in the deployment guide.

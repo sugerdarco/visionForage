@@ -372,7 +372,8 @@ depends on the pinned software, hardware, worker count and source revisions.
 - [x] Standalone CPU ONNX inference with authenticated bounded uploads, saved preprocessing and real-model HTTP compatibility checks; see [inference setup](INFERENCE.md).
 - [x] Inference Docker image, verified bundle preparation, owner-scoped deployment create/list/status/stop and one-time endpoint keys; see [local deployments](DEPLOYMENTS.md).
 - [x] Stable Traefik prediction routes, browser CORS, route readiness checks and separate API keys for concurrent deployments.
-- [ ] Next: prediction persistence/monitoring, followed by active-learning review.
+- [x] Durable prediction logging, private image history, request counts, latency percentiles, class distribution and confidence histograms; see [monitoring](MONITORING.md).
+- [ ] Next backend increment: active-learning review queue and acceptance into the dataset.
 - [ ] Populated-project deletion with object-storage and job cleanup.
 - [ ] Later: active-learning comparison and notebook 03.
 

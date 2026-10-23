@@ -40,8 +40,9 @@ A [local ONNX inference service](docs/INFERENCE.md) now
 serves verified classification/detection bundles with API-key authentication and
 bounded image uploads. [Local Docker deployments](docs/DEPLOYMENTS.md) now download
 verified bundles and provide create/status/stop APIs with one-time endpoint keys.
-Traefik provides stable prediction URLs and browser access. Prediction logging
-and monitoring come next.
+Traefik provides stable prediction URLs and browser access.
+[Prediction logging and monitoring](docs/MONITORING.md) now store private images
+and results, expose history and calculate latency, class and confidence aggregates.
 
 ## Development setup
 

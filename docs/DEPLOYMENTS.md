@@ -8,7 +8,8 @@ Any owned model from a successful training job can be deployed.
 Deployments now use stable URLs through Traefik, by default
 `http://127.0.0.1:8080/predict/{slug}`. Inference containers publish no host ports.
 The local gateway supports browser requests from the configured frontend origins.
-Prediction persistence and monitoring are separate, unfinished features.
+[Prediction logging and monitoring](MONITORING.md) now persist images/results and
+expose history, latency, class and confidence aggregates.
 
 ## Setup
 
@@ -84,8 +85,8 @@ Create accepts an empty JSON object or:
 Slugs start with a lowercase letter, contain lowercase letters/digits/hyphens and
 have at most 63 characters. Omission generates a unique slug. Slugs stay reserved
 in history even after stopping; use a new slug for a replacement deployment.
-`confidence_threshold` must be a number from 0 to 1. It is stored for future
-low-confidence review; it does not currently filter prediction responses.
+`confidence_threshold` must be a number from 0 to 1. The collector uses it to flag
+low-confidence predictions; it does not filter prediction responses.
 
 The response includes `id`, `model_id`, `project_id`, `model_version`, `slug`,
 `status`, `confidence_threshold`, `endpoint_url`, `runtime_checked`, `created_at`
@@ -116,7 +117,8 @@ the last stored state with `runtime_checked: false`.
 2. The API downloads only `model.onnx` and `metadata.json` from private MinIO into
    a temporary directory, checks exact byte counts and SHA-256, then renames the
    completed bundle into place. Graphs are limited to 1 GiB and metadata to 1 MiB.
-3. Docker mounts that bundle read-only. The container receives model identity,
+3. Docker mounts the bundle read-only and a separate writable prediction outbox.
+   The container receives model identity,
    hashes, slug, key digest and CPU thread count. It receives no storage, queue or
    database credentials and independently verifies the bundle before becoming ready.
 4. The container joins the inference network with an exact-path Traefik router.
@@ -126,7 +128,8 @@ the last stored state with `runtime_checked: false`.
    the endpoint and one-time key. Predictions travel through Traefik to inference.
 5. Stop checks all ownership labels, removes the inspected container by ID,
    confirms its absence and deletes the local bundle before marking it `stopped`.
-   Repeating stop is safe; immutable artifacts remain in MinIO. Traefik removes
+   Repeating stop is safe; immutable artifacts remain in MinIO and pending logs
+   remain for the CPU worker to collect. Traefik removes
    the route asynchronously within a few seconds. A request in that interval may
    receive a gateway error before the endpoint settles to `404`.
 
