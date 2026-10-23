@@ -15,16 +15,35 @@ from vf_api.settings import QueueSettings, Settings, StorageSettings
 from vf_api.storage import ObjectStore
 from vf_worker.dispatch import dispatch_pending
 from vf_worker.leases import recover_stalled
+from vf_worker.predictions import collect_predictions
+from vf_api.queueing import PREDICTION_TASK
+from vf_api.settings import DeploymentSettings
+from vf_api.storage import PredictionStore
 
 
 def create_worker(
     database: Settings | None = None,
     storage: StorageSettings | None = None,
     queue: QueueSettings | None = None,
+    deployments: DeploymentSettings | None = None,
 ):
     database = database or Settings()
     storage = storage or StorageSettings()
     app = make_queue(queue)
+
+    @app.task(name=PREDICTION_TASK, shared=False, lazy=False)
+    def predictions():
+        engine = make_engine(database)
+        store = PredictionStore(storage)
+        try:
+            return collect_predictions(
+                (deployments or DeploymentSettings()).prediction_log_dir,
+                make_session_factory(engine),
+                store,
+            )
+        finally:
+            store.close()
+            engine.dispose()
 
     @app.task(name=DISPATCH_TASK, shared=False, lazy=False)
     def dispatch():

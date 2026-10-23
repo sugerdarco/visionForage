@@ -8,6 +8,7 @@ THUMBNAIL_TASK = "visionforge.thumbnails.create"
 RECOVERY_TASK = "visionforge.thumbnails.recover"
 TRAIN_TASK = "visionforge.training.run"
 DISPATCH_TASK = "visionforge.training.dispatch"
+PREDICTION_TASK = "visionforge.predictions.collect"
 
 
 def make_queue(settings: QueueSettings | None = None) -> Celery:
@@ -31,6 +32,7 @@ def make_queue(settings: QueueSettings | None = None) -> Celery:
         },
         task_publish_retry=False,
         beat_schedule={
+            "collect-predictions": {"task": PREDICTION_TASK, "schedule": 5.0},
             "dispatch-training-jobs": {
                 "task": DISPATCH_TASK,
                 "schedule": 10.0,

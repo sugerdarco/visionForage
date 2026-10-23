@@ -158,6 +158,36 @@ class DatasetStore(ObjectStore):
         )
 
 
+class PredictionStore(ObjectStore):
+    def __init__(self, settings: StorageSettings):
+        super().__init__(settings)
+        self.bucket = settings.s3_predictions_bucket
+
+    def put_once(self, key, data, mime, digest):
+        from botocore.exceptions import ClientError
+
+        try:
+            self.client.put_object(
+                Bucket=self.bucket,
+                Key=key,
+                Body=data,
+                ContentType=mime,
+                IfNoneMatch="*",
+                Metadata={"sha256": digest},
+            )
+        except ClientError as error:
+            if error.response["Error"]["Code"] not in ("PreconditionFailed", "412"):
+                raise
+            existing = self.client.head_object(Bucket=self.bucket, Key=key)
+            if (
+                existing["ContentLength"] != len(data)
+                or existing.get("Metadata", {}).get("sha256") != digest
+            ):
+                raise ValueError(
+                    "Prediction image conflicts with stored object"
+                ) from None
+
+
 class ArtifactStore(ObjectStore):
     """Stream immutable training artifacts into their own private bucket."""
 
