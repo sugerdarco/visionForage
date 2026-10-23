@@ -49,6 +49,15 @@ class DeploymentManager:
 
     def launch(self, spec, store, image, check):
         bundle = self.prepare(spec, store)
+        root = self.settings.prediction_log_dir.absolute()
+        root.mkdir(parents=True, exist_ok=True, mode=0o700)
+        if root.is_symlink() or root.stat().st_mode & 0o077:
+            raise DeploymentUnavailable("Prediction directory must be private")
+        outbox = root / str(spec["id"])
+        outbox.mkdir(mode=0o700)
+        # Private parent protects host access; container UID can write its mount.
+        outbox.chmod(0o1777)
+        spec = {**spec, "outbox": outbox}
         check()
         self.runtime.create(spec, bundle, image)
         check()

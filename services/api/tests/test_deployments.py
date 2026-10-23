@@ -78,6 +78,7 @@ class DeploymentTest(JobAPITest):
             DeploymentSettings(
                 deployment_work_dir=Path(temporary.name) / "deployments",
                 deployment_ready_seconds=5,
+                prediction_log_dir=Path(temporary.name) / "predictions",
             ),
             self.runtime,
         )

@@ -18,6 +18,7 @@ from starlette.formparsers import MultiPartException, MultiPartParser
 
 from vf_inference.runtime import ModelRuntime
 from vf_inference.settings import Settings
+from vf_inference.prediction_log import enqueue
 
 MAX_IMAGE_BYTES = 20 * 1024 * 1024
 MAX_BODY_BYTES = MAX_IMAGE_BYTES + 64 * 1024
@@ -35,6 +36,7 @@ class Box(BaseModel):
 
 class Prediction(BaseModel):
     request_id: UUID
+    prediction_id: UUID | None = None
     model_id: UUID
     model_version: int
     latency_ms: float
@@ -136,6 +138,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post(
         "/predict/{slug}",
         response_model=ClassificationPrediction | DetectionPrediction,
+        response_model_exclude_none=True,
         openapi_extra={
             "requestBody": {
                 "required": True,
@@ -197,11 +200,26 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 raise HTTPException(
                     status_code=503, detail="Inference unavailable"
                 ) from None
+            identifier = uuid4()
+            latency_ms = (perf_counter() - start) * 1000
+            try:
+                await run_in_threadpool(
+                    enqueue, settings, identifier, data, mime, result, latency_ms
+                )
+            except (OSError, ValueError):
+                raise HTTPException(
+                    status_code=503,
+                    detail="Prediction logging unavailable; retry later",
+                    headers={"Retry-After": "5"},
+                ) from None
             return {
-                "request_id": uuid4(),
+                "request_id": identifier,
+                "prediction_id": identifier
+                if settings.prediction_log_dir is not None
+                else None,
                 "model_id": settings.model_id,
                 "model_version": settings.model_version,
-                "latency_ms": (perf_counter() - start) * 1000,
+                "latency_ms": latency_ms,
                 **result,
             }
         finally:

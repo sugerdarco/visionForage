@@ -80,6 +80,8 @@ class DockerRuntime:
             "INFERENCE_METADATA_SHA256": spec["metadata"]["sha256"],
             "INFERENCE_API_KEY_SHA256": spec["key_hash"],
             "INFERENCE_CPU_THREADS": str(self.settings.deployment_cpu_threads),
+            "INFERENCE_PREDICTION_LOG_DIR": "/outbox",
+            "INFERENCE_DEPLOYMENT_ID": str(spec["id"]),
         }
         name = self.name(spec["id"])
         router = f"traefik.http.routers.{name}"
@@ -142,6 +144,8 @@ class DockerRuntime:
             self.settings.deployment_network,
             "--mount",
             f"type=bind,src={bundle},dst=/bundle,readonly",
+            "--mount",
+            f"type=bind,src={spec['outbox']},dst=/outbox",
             "--env-file",
             "/dev/stdin",
             *labels,

@@ -53,6 +53,7 @@ class StorageSettings(EnvironmentSettings):
     s3_images_bucket: str = "vf-images"
     s3_datasets_bucket: str = "vf-datasets"
     s3_artifacts_bucket: str = "vf-artifacts"
+    s3_predictions_bucket: str = "vf-predictions"
 
     @property
     def endpoint(self) -> str:
@@ -75,6 +76,7 @@ class QueueSettings(EnvironmentSettings):
 
 
 class DeploymentSettings(EnvironmentSettings):
+    prediction_log_dir: Path = Path("artifacts/predictions")
     deployment_network: str = Field(
         default="visionforge_inference", pattern=r"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,62}$"
     )

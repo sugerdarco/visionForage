@@ -79,6 +79,7 @@ class RuntimeTest(unittest.TestCase):
             **self.spec,
             "model_version": 1,
             "slug": "test",
+            "outbox": Path("/private/outbox"),
             "key_hash": "a" * 64,
             "model": {"sha256": "b" * 64},
             "metadata": {"sha256": "c" * 64},
@@ -108,7 +109,7 @@ class RuntimeTest(unittest.TestCase):
             "type=bind,src=/private/bundle,dst=/bundle,readonly",
         )
         env = command.call_args.kwargs["input"].splitlines()
-        self.assertEqual(len(env), 8)
+        self.assertEqual(len(env), 10)
         self.assertTrue(all(line.startswith("INFERENCE_") for line in env))
 
     def test_route_probe_requires_expected_deployment_and_auth_rejection(self):

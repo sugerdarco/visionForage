@@ -4,7 +4,7 @@ from pathlib import Path
 import re
 from uuid import UUID
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -21,6 +21,16 @@ class Settings(BaseSettings):
     metadata_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
     api_key_sha256: SecretStr
     cpu_threads: int = Field(default=2, ge=1, le=8)
+    prediction_log_dir: Path | None = None
+    deployment_id: UUID | None = None
+
+    @model_validator(mode="after")
+    def logging_identity(self):
+        if (self.prediction_log_dir is None) != (self.deployment_id is None):
+            raise ValueError(
+                "Logging needs both deployment identity and outbox directory"
+            )
+        return self
 
     @field_validator("api_key_sha256")
     @classmethod
