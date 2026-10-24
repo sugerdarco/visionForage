@@ -67,6 +67,7 @@ class Project(MutableRecord, Base):
     owner_id: Mapped[UUID] = mapped_column(sa.ForeignKey("users.id"), index=True)
     name: Mapped[str] = mapped_column(sa.String(200))
     task_type: Mapped[str] = mapped_column(sa.String(20))
+    deleting: Mapped[bool] = mapped_column(sa.Boolean, server_default=sa.false())
 
 
 class Class(MutableRecord, Base):
@@ -280,6 +281,10 @@ class Prediction(MutableRecord, Base):
         ),
         sa.CheckConstraint("jsonb_typeof(output) = 'object'", name="output_object"),
         sa.Index("ix_predictions_deployment_created", "deployment_id", "created_at"),
+        sa.CheckConstraint(
+            "(review_image_id IS NULL AND reviewed_at IS NULL AND review_payload_sha256 IS NULL) OR (review_image_id IS NOT NULL AND reviewed_at IS NOT NULL AND review_payload_sha256 IS NOT NULL AND review_payload_sha256 ~ '^[a-f0-9]{64}$')",
+            name="review_receipt",
+        ),
     )
     deployment_id: Mapped[UUID] = mapped_column(sa.ForeignKey("deployments.id"))
     image_key: Mapped[str] = mapped_column(sa.Text)
@@ -287,3 +292,6 @@ class Prediction(MutableRecord, Base):
     max_confidence: Mapped[float] = mapped_column(sa.Double)
     latency_ms: Mapped[float] = mapped_column(sa.Double)
     sent_to_review: Mapped[bool] = mapped_column(sa.Boolean, server_default=sa.false())
+    review_image_id: Mapped[UUID | None] = mapped_column(sa.ForeignKey("images.id"))
+    reviewed_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
+    review_payload_sha256: Mapped[str | None] = mapped_column(sa.String(64))

@@ -27,7 +27,8 @@ ownership tokens prevent expired workers from publishing results.
 
 ## Setup and migration
 
-Start the local services using [LOCAL.md](LOCAL.md), then run from the repo root:
+`make up` now applies migrations automatically as part of the [Compose backend](BACKEND.md).
+For native development and database tests, run from the repo root:
 
 ```bash
 make api-env UV="$HOME/.local/share/visionforge/tools/bin/uv"
@@ -43,15 +44,17 @@ packages that are not in that list. Direct dependencies and their purposes are
 listed in `requirements/api.in`.
 
 Settings read the existing `.env` and environment variables. The latter take
-precedence. `POSTGRES_HOST` defaults to `127.0.0.1`; a future Compose API container
-will use `postgres` and the container port 5432. Existing `.env` files need no
+precedence. `POSTGRES_HOST` defaults to `127.0.0.1`; the Compose API container
+uses `postgres` and the container port 5432. Existing `.env` files need no
 change for host-side migration commands. Passwords are represented as secrets,
 and the database URL is constructed with SQLAlchemy's `URL.create` so special
 characters do not break parsing. No URL or password is stored in `alembic.ini`.
 
-`make migrate` applies revisions through `0003`. Revision `0002` adds training
+`make migrate` applies revisions through `0004`. Revision `0002` adds training
 dispatch and cancellation timestamps; `0003` adds heartbeat and ownership fields
-and updates recovery/dispatch indexes. See [training jobs](TRAINING_JOBS.md) and the
+and updates recovery/dispatch indexes. Revision `0004` adds the project deletion
+flag and an atomic prediction-review receipt (image ID, timestamp and label hash).
+A check requires all receipt fields to be absent or valid together. See [training jobs](TRAINING_JOBS.md) and the
 [worker upgrade sequence](GPU_WORKER.md#updating-existing-installations).
 Running it again leaves an up-to-date
 database unchanged. It creates the application tables plus Alembic's revision
