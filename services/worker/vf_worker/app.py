@@ -9,7 +9,7 @@ from sqlalchemy.exc import OperationalError
 
 from vf_api.database import make_engine, make_session_factory
 from vf_api.image_files import make_thumbnail
-from vf_api.models import Image
+from vf_api.models import Image, Project
 from vf_api.queueing import DISPATCH_TASK, RECOVERY_TASK, THUMBNAIL_TASK, make_queue
 from vf_api.settings import QueueSettings, Settings, StorageSettings
 from vf_api.storage import ObjectStore
@@ -19,6 +19,10 @@ from vf_worker.predictions import collect_predictions
 from vf_api.queueing import PREDICTION_TASK
 from vf_api.settings import DeploymentSettings
 from vf_api.storage import PredictionStore
+from vf_api.storage import DatasetStore, ArtifactStore
+from vf_api.queueing import PROJECT_CLEANUP_TASK
+from vf_api.deployment_manager import DeploymentManager
+from vf_worker.project_cleanup import clean_projects
 
 
 def create_worker(
@@ -30,6 +34,26 @@ def create_worker(
     database = database or Settings()
     storage = storage or StorageSettings()
     app = make_queue(queue)
+
+    @app.task(name=PROJECT_CLEANUP_TASK, shared=False, lazy=False)
+    def project_cleanup():
+        engine = make_engine(database)
+        stores = {
+            "images": ObjectStore(storage),
+            "datasets": DatasetStore(storage),
+            "artifacts": ArtifactStore(storage),
+            "predictions": PredictionStore(storage),
+        }
+        try:
+            return clean_projects(
+                make_session_factory(engine),
+                stores,
+                DeploymentManager(deployments or DeploymentSettings()),
+            )
+        finally:
+            for store in stores.values():
+                store.close()
+            engine.dispose()
 
     @app.task(name=PREDICTION_TASK, shared=False, lazy=False)
     def predictions():
@@ -71,6 +95,17 @@ def create_worker(
             with make_session_factory(engine)() as session:
                 image = session.get(Image, UUID(image_id))
                 if image is None or image.thumb_key is not None:
+                    return
+                if (
+                    session.scalar(
+                        select(Project.id)
+                        .where(
+                            Project.id == image.project_id, Project.deleting.is_(False)
+                        )
+                        .with_for_update(read=True, key_share=True)
+                    )
+                    is None
+                ):
                     return
                 data = store.read(image.storage_key)
                 if hashlib.sha256(data).hexdigest() != image.sha256:

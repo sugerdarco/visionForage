@@ -83,11 +83,17 @@ class ProjectTest(APITest):
         self.assertGreater(renamed.json()["updated_at"], project["updated_at"])
         self.assertEqual(renamed.json()["classes"], project["classes"])
         deleted = self.client.delete(path, headers=self.headers)
-        self.assertEqual(deleted.status_code, 204)
-        self.assertEqual(deleted.content, b"")
-        self.assertEqual(self.client.get(path, headers=self.headers).status_code, 404)
+        self.assertEqual(deleted.status_code, 202)
+        self.assertEqual(deleted.json()["status"], "deleting")
+        self.assertTrue(self.client.get(path, headers=self.headers).json()["deleting"])
         self.assertEqual(
-            self.client.delete(path, headers=self.headers).status_code, 404
+            self.client.delete(path, headers=self.headers).status_code, 202
+        )
+        self.assertEqual(
+            self.client.patch(
+                path, headers=self.headers, json={"name": "Late edit"}
+            ).status_code,
+            409,
         )
         with Session(self.engine) as session:
             self.assertEqual(
@@ -96,7 +102,7 @@ class ProjectTest(APITest):
                     .select_from(Class)
                     .where(Class.project_id == UUID(project["id"]))
                 ),
-                0,
+                len(project["classes"]),
             )
 
     def test_owner_scoped_pagination_and_deterministic_order(self):
@@ -304,7 +310,7 @@ class ProjectTest(APITest):
         )
         self.assertEqual(self.labels(project_id, ["next"]).json()[0]["index"], 9)
 
-    def test_delete_with_image_rolls_back_class_removal(self):
+    def test_delete_with_image_marks_cleanup_without_removing_metadata(self):
         project = self.create(classes=[{"name": "keep", "color": "#123456"}])
         project_id = UUID(project["id"])
         with Session(self.engine) as session:
@@ -319,11 +325,10 @@ class ProjectTest(APITest):
             )
             session.commit()
         response = self.client.delete(f"{PREFIX}/{project_id}", headers=self.headers)
-        self.assertEqual(response.status_code, 409, response.text)
-        self.assertEqual(
-            self.client.get(f"{PREFIX}/{project_id}", headers=self.headers).json(),
-            project,
-        )
+        self.assertEqual(response.status_code, 202, response.text)
+        current = self.client.get(f"{PREFIX}/{project_id}", headers=self.headers).json()
+        self.assertTrue(current["deleting"])
+        self.assertEqual(current["classes"], project["classes"])
 
     def test_appending_after_training_preserves_existing_class_map_and_history(self):
         project = self.create(classes=[{"name": "ok", "color": "#00ff00"}])
@@ -373,12 +378,12 @@ class ProjectTest(APITest):
             self.client.delete(
                 f"{PREFIX}/{project_id}", headers=self.headers
             ).status_code,
-            409,
+            202,
         )
         self.assertEqual(
-            self.client.get(
-                f"{PREFIX}/{project_id}/classes", headers=self.headers
-            ).json(),
+            self.client.get(f"{PREFIX}/{project_id}", headers=self.headers).json()[
+                "classes"
+            ],
             rows,
         )
 

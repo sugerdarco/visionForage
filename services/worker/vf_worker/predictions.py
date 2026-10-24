@@ -43,6 +43,15 @@ def ingest_event(path, sessions, store):
             if record is None:
                 raise ValueError("Unknown prediction deployment")
             deployment, model, task = record
+            if (
+                session.scalar(
+                    select(Project.id)
+                    .where(Project.id == model.project_id, Project.deleting.is_(False))
+                    .with_for_update(read=True, key_share=True)
+                )
+                is None
+            ):
+                raise ValueError("Project deletion is in progress")
             if event.model_id != model.id or event.model_version != model.version:
                 raise ValueError("Prediction model mismatch")
             if event.created_at > datetime.now(timezone.utc) + timedelta(minutes=5):

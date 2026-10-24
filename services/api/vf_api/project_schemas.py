@@ -86,6 +86,7 @@ class ProjectResponse(BaseModel):
     task_type: Literal["classification", "detection", "anomaly"]
     created_at: datetime
     updated_at: datetime
+    deleting: bool
 
 
 class ProjectDetail(ProjectResponse):

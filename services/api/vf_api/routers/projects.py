@@ -2,13 +2,20 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query, Response
-from sqlalchemy import delete, func, select
+from fastapi import APIRouter, HTTPException, Query
+from sqlalchemy import func, select
+from uuid import UUID
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from vf_api.dependencies import CurrentUser, Database, LockedProject, OwnedProject
-from vf_api.models import Class, Project
+from vf_api.dependencies import (
+    CurrentUser,
+    Database,
+    LockedProject,
+    OwnedProject,
+    owned_project,
+)
+from vf_api.models import Class, Project, TrainingJob
 from vf_api.project_schemas import (
     ClassBatch,
     ClassCreate,
@@ -99,7 +106,10 @@ def list_projects(
 
 
 @router.get("/{project_id}", response_model=ProjectDetail)
-def read_project(project: OwnedProject, session: Database) -> ProjectDetail:
+def read_project(
+    project_id: UUID, session: Database, user: CurrentUser
+) -> ProjectDetail:
+    project = owned_project(project_id, session, user, allow_deleting=True)
     return detail(project, session)
 
 
@@ -113,21 +123,26 @@ def rename_project(
     return detail(project, session)
 
 
-@router.delete("/{project_id}", status_code=204)
-def delete_project(project: LockedProject, session: Database) -> Response:
-    try:
-        session.execute(delete(Class).where(Class.project_id == project.id))
-        session.delete(project)
-        session.commit()
-    except IntegrityError as error:
-        session.rollback()
-        if getattr(error.orig, "sqlstate", None) == "23503":
-            raise HTTPException(
-                status_code=409,
-                detail="Project contains data; deletion requires a cleanup workflow",
-            ) from None
-        raise
-    return Response(status_code=204)
+@router.delete("/{project_id}", status_code=202)
+def delete_project(project_id: UUID, session: Database, user: CurrentUser):
+    project = owned_project(project_id, session, user, lock=True, allow_deleting=True)
+    project.deleting = True
+    now = session.scalar(select(func.clock_timestamp()))
+    jobs = session.scalars(
+        select(TrainingJob)
+        .where(
+            TrainingJob.project_id == project.id,
+            TrainingJob.status.in_(["queued", "running"]),
+        )
+        .order_by(TrainingJob.id)
+        .with_for_update()
+    )
+    for job in jobs:
+        job.cancel_requested_at = job.cancel_requested_at or now
+        if job.status == "queued":
+            job.status, job.finished_at = "cancelled", now
+    session.commit()
+    return {"id": project_id, "status": "deleting"}
 
 
 @router.get("/{project_id}/classes", response_model=list[ClassResponse])

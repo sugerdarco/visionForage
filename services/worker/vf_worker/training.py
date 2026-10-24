@@ -309,9 +309,15 @@ def register(
     sessions, identifier, token, project_id, class_map, metrics, artifacts, input_size
 ):
     with sessions.begin() as session:
-        session.execute(
-            select(Project.id).where(Project.id == project_id).with_for_update()
-        ).one()
+        if (
+            session.scalar(
+                select(Project.id)
+                .where(Project.id == project_id, Project.deleting.is_(False))
+                .with_for_update()
+            )
+            is None
+        ):
+            raise Cancelled()
         job = session.scalar(
             select(TrainingJob).where(*owned(identifier, token)).with_for_update()
         )
@@ -454,9 +460,24 @@ def run_job(
                         "onnx/verification.json",
                     ):
                         check()
-                        index[name] = artifacts.put_file_once(
-                            f"{prefix}/{name}", work / name
-                        )
+                        # Fence object publication against deletion, including a late
+                        # worker whose lease expired during an object upload.
+                        with sessions.begin() as fence:
+                            if (
+                                fence.scalar(
+                                    select(Project.id)
+                                    .where(
+                                        Project.id == job.project_id,
+                                        Project.deleting.is_(False),
+                                    )
+                                    .with_for_update(read=True, key_share=True)
+                                )
+                                is None
+                            ):
+                                raise Cancelled()
+                            index[name] = artifacts.put_file_once(
+                                f"{prefix}/{name}", work / name
+                            )
                     check()
                     model_id = register(
                         sessions,

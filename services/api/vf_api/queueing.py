@@ -9,6 +9,7 @@ RECOVERY_TASK = "visionforge.thumbnails.recover"
 TRAIN_TASK = "visionforge.training.run"
 DISPATCH_TASK = "visionforge.training.dispatch"
 PREDICTION_TASK = "visionforge.predictions.collect"
+PROJECT_CLEANUP_TASK = "visionforge.projects.cleanup"
 
 
 def make_queue(settings: QueueSettings | None = None) -> Celery:
@@ -32,6 +33,10 @@ def make_queue(settings: QueueSettings | None = None) -> Celery:
         },
         task_publish_retry=False,
         beat_schedule={
+            "cleanup-deleted-projects": {
+                "task": PROJECT_CLEANUP_TASK,
+                "schedule": 10.0,
+            },
             "collect-predictions": {"task": PREDICTION_TASK, "schedule": 5.0},
             "dispatch-training-jobs": {
                 "task": DISPATCH_TASK,

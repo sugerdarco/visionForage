@@ -103,6 +103,20 @@ class ObjectStore:
     def delete(self, key: str) -> None:
         self.client.delete_object(Bucket=self.bucket, Key=key)
 
+    def delete_prefix(self, prefix: str) -> None:
+        if not prefix or not prefix.endswith("/"):
+            raise ValueError("An explicit namespace prefix is required")
+        for page in self.client.get_paginator("list_objects_v2").paginate(
+            Bucket=self.bucket, Prefix=prefix
+        ):
+            objects = [{"Key": item["Key"]} for item in page.get("Contents", [])]
+            if objects:
+                result = self.client.delete_objects(
+                    Bucket=self.bucket, Delete={"Objects": objects, "Quiet": True}
+                )
+                if result.get("Errors"):
+                    raise RuntimeError("Object cleanup incomplete")
+
     def url(self, key: str) -> str:
         return self.public.generate_presigned_url(
             "get_object",

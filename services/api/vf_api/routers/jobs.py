@@ -8,7 +8,7 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import func, select
 
-from vf_api.dependencies import CurrentUser, Database, OwnedProject
+from vf_api.dependencies import CurrentUser, Database, OwnedProject, LockedProject
 from vf_api.job_schemas import JobCreate, JobPage, JobResponse, MetricPage
 from vf_api.models import DatasetVersion, Model, Project, TrainingJob, TrainingMetric
 
@@ -52,7 +52,7 @@ def owned_job(job_id, session, user, *, lock=False):
 
 
 @router.post("/projects/{project_id}/jobs", response_model=JobResponse, status_code=201)
-def create_job(body: JobCreate, project: OwnedProject, session: Database):
+def create_job(body: JobCreate, project: LockedProject, session: Database):
     version = session.scalar(
         select(DatasetVersion).where(
             DatasetVersion.id == body.dataset_version_id,

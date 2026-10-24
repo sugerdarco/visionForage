@@ -18,7 +18,7 @@ from vf_api.deployment_schemas import (
     DeploymentPage,
     DeploymentResponse,
 )
-from vf_api.dependencies import CurrentUser, Database, OwnedProject
+from vf_api.dependencies import CurrentUser, Database, OwnedProject, owned_project
 from vf_api.model_artifacts import artifact_record
 from vf_api.models import Deployment, Model, Project, TrainingJob
 from vf_api.routers.models import owned_model
@@ -95,6 +95,7 @@ def create_deployment(
     store: Artifacts,
 ):
     model = owned_model(model_id, session, user)
+    owned_project(model.project_id, session, user, lock=True)
     if (
         session.scalar(select(TrainingJob.status).where(TrainingJob.id == model.job_id))
         != "succeeded"
@@ -141,7 +142,13 @@ def create_deployment(
             status_code=409, detail="Deployment slug is already used"
         ) from None
     operation_lock(session, identifier, wait=True)
-    session.refresh(row)
+    row = session.scalar(
+        select(Deployment)
+        .where(Deployment.id == identifier)
+        .execution_options(populate_existing=True)
+    )
+    if row is None:
+        raise HTTPException(status_code=409, detail="Deployment was removed")
     if row.status != "starting":
         raise HTTPException(status_code=409, detail="Deployment is no longer starting")
     spec = {
