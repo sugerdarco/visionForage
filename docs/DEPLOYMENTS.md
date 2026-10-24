@@ -13,14 +13,10 @@ expose history, latency, class and confidence aggregates.
 
 ## Setup
 
-Run the API natively from the repository root, with the existing PostgreSQL and
-MinIO services available. The same local account needs Docker CLI/daemon access:
-
-```bash
-make inference-image
-make gateway
-make api
-```
+Run `make up` from the repository root to build inference and start the complete
+local backend. See [Compose setup](BACKEND.md). Native development can instead
+use `make inference-image`, `make gateway`, `make api`, `make worker` and one
+`make beat`; the native API and worker need local Docker CLI/daemon access.
 
 The build pins the Python base image by digest and installs the existing pinned
 CPU inference dependencies. Its build context allowlist excludes credentials,
@@ -41,7 +37,8 @@ Optional configuration belongs in the private root `.env`:
 | `DEPLOYMENT_READY_SECONDS` | `90` | Readiness polling window after container start |
 | `DEPLOYMENT_NETWORK` | `visionforge_inference` | Shared Docker network for gateway and inference |
 | `TRAEFIK_PORT` | `8080` | Gateway host port, bound to loopback |
-| `DEPLOYMENT_GATEWAY_URL` | `http://127.0.0.1:8080` | Gateway origin reachable by API and clients |
+| `DEPLOYMENT_GATEWAY_URL` | `http://127.0.0.1:8080` | Gateway origin returned to clients |
+| `DEPLOYMENT_GATEWAY_PROBE_URL` | Unset natively; `http://traefik:8000` in Compose | Internal route-readiness origin |
 | `DEPLOYMENT_CORS_ORIGINS` | `["http://localhost:3000","http://127.0.0.1:3000"]` | Allowed browser origins, as a JSON array |
 
 `make up` also starts Traefik. Changing `TRAEFIK_PORT` requires updating

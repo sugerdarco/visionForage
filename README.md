@@ -4,7 +4,7 @@ A visual inspection platform for industrial defects. The planned workflow is to
 upload images, label defects, train a model, and deploy it for inference.
 
 The first milestone is reproducible classification and detection baselines.
-The application and deployment services will follow once the ML pipeline works.
+The backend now supports the full workflow; the browser frontend is next.
 The first full casting baseline is complete: **99.56% defective recall**,
 **99.72% test accuracy**, and **16.96 ms mean / 17.51 ms p95**
 model-only ONNX CPU latency. See [measured results and limitations](docs/RESULTS.md)
@@ -43,13 +43,17 @@ verified bundles and provide create/status/stop APIs with one-time endpoint keys
 Traefik provides stable prediction URLs and browser access.
 [Prediction logging and monitoring](docs/MONITORING.md) now store private images
 and results, expose history and calculate latency, class and confidence aggregates.
+[Human review](docs/REVIEWS.md) adds corrected predictions to the next dataset version.
+[Populated-project deletion](docs/PROJECT_DELETION.md) coordinates job cancellation,
+container removal and storage cleanup. Run the [complete local backend](docs/BACKEND.md)
+with `make up`, including the API, CPU worker and scheduler.
 
 ## Development setup
 
 Lightweight development and CPU checks run locally. Training runs on a remote
 Linux GPU host through SSH, using an isolated Python 3.11 environment without
-sudo. Docker Compose runs the local storage and queue services; remote
-training will not require Docker access.
+sudo. Docker Compose runs the local API, CPU workers, storage, queue and gateway;
+remote training does not require Docker access.
 
 Follow [local setup and service connections](docs/LOCAL.md) to build the pinned
 storage tools, generate `.env`, then run `make up` and `make check-infra`.

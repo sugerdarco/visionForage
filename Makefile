@@ -8,7 +8,13 @@ INFERENCE_ENV_FILE ?= services/inference/.env
 ALEMBIC = $(API_PYTHON) -m alembic -c services/api/alembic.ini
 .DEFAULT_GOAL := lint
 
-.PHONY: lint test env up down status check-infra api-env api migrate db-current test-db storage-config worker gpu-worker beat test-uploads inference-env inference test-inference inference-image test-deployments gateway
+.PHONY: lint test env up down status check-infra api-env api migrate db-current test-db storage-config worker gpu-worker beat test-uploads inference-env inference test-inference inference-image test-deployments gateway backend-env backend-up
+
+backend-env:
+	$(PYTHON) scripts/setup_backend_env.py
+
+backend-up: backend-env inference-image
+	$(COMPOSE) --profile backend up -d --build --wait --wait-timeout 180
 
 gateway:
 	$(COMPOSE) up -d --wait --wait-timeout 60 traefik
@@ -64,12 +70,10 @@ test-db:
 env:
 	$(PYTHON) scripts/setup_local_env.py
 
-up:
-	$(COMPOSE) up -d --build --wait --wait-timeout 120 postgres redis minio traefik
-	$(COMPOSE) run --rm --no-deps storage-init
+up: backend-up
 
 down:
-	$(COMPOSE) down
+	$(COMPOSE) --profile backend down
 
 status:
 	$(COMPOSE) ps

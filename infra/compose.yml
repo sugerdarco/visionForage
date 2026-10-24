@@ -1,6 +1,111 @@
 name: visionforge
 
+x-backend-env: &backend-env
+  POSTGRES_DB: ${POSTGRES_DB:-visionforge}
+  POSTGRES_USER: ${POSTGRES_USER:-visionforge}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run make env first}
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: "5432"
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  REDIS_PASSWORD: ${REDIS_PASSWORD:?Run make env first}
+  MINIO_ROOT_USER: ${MINIO_ROOT_USER:-visionforge}
+  MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Run make env first}
+  S3_ENDPOINT_URL: http://minio:9000
+  S3_PUBLIC_ENDPOINT_URL: ${S3_PUBLIC_ENDPOINT_URL:-http://127.0.0.1:${MINIO_API_PORT:-9000}}
+  S3_REGION: ${S3_REGION:-us-east-1}
+  S3_IMAGES_BUCKET: ${S3_IMAGES_BUCKET:-vf-images}
+  S3_DATASETS_BUCKET: ${S3_DATASETS_BUCKET:-vf-datasets}
+  S3_ARTIFACTS_BUCKET: ${S3_ARTIFACTS_BUCKET:-vf-artifacts}
+  S3_PREDICTIONS_BUCKET: ${S3_PREDICTIONS_BUCKET:-vf-predictions}
+  DEPLOYMENT_IMAGE: ${DEPLOYMENT_IMAGE:-visionforge-inference:0.1.0}
+  DEPLOYMENT_NETWORK: ${DEPLOYMENT_NETWORK:-visionforge_inference}
+  DEPLOYMENT_NAMESPACE: ${DEPLOYMENT_NAMESPACE:-visionforge}
+  DEPLOYMENT_MAX_ACTIVE: ${DEPLOYMENT_MAX_ACTIVE:-2}
+  DEPLOYMENT_CPU_THREADS: ${DEPLOYMENT_CPU_THREADS:-2}
+  DEPLOYMENT_MEMORY_MB: ${DEPLOYMENT_MEMORY_MB:-1536}
+  DEPLOYMENT_READY_SECONDS: ${DEPLOYMENT_READY_SECONDS:-90}
+  DEPLOYMENT_WORK_DIR: ${ARTIFACTS_DIR:-/app/artifacts}/deployments
+  PREDICTION_LOG_DIR: ${ARTIFACTS_DIR:-/app/artifacts}/predictions
+  DEPLOYMENT_GATEWAY_URL: ${DEPLOYMENT_GATEWAY_URL:-http://127.0.0.1:8080}
+  DEPLOYMENT_GATEWAY_PROBE_URL: http://traefik:8000
+  DEPLOYMENT_CORS_ORIGINS: ${DEPLOYMENT_CORS_ORIGINS:-["http://localhost:3000","http://127.0.0.1:3000"]}
+
+x-backend: &backend
+  image: visionforge-backend:0.1.0
+  build:
+    context: ..
+    dockerfile: infra/backend.Dockerfile
+  profiles: [backend]
+  init: true
+  user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+  group_add: ["${DOCKER_GID:-0}"]
+  environment: *backend-env
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  tmpfs: [/tmp:size=512m]
+  mem_limit: 1024m
+  pids_limit: 128
+  logging:
+    driver: json-file
+    options: {max-size: 10m, max-file: "2"}
+  volumes:
+    - ${ARTIFACTS_DIR:-../artifacts}/deployments:${ARTIFACTS_DIR:-/app/artifacts}/deployments
+    - ${ARTIFACTS_DIR:-../artifacts}/predictions:${ARTIFACTS_DIR:-/app/artifacts}/predictions
+    - /var/run/docker.sock:/var/run/docker.sock:ro
+  networks: [default, inference]
+  depends_on:
+    migrate: {condition: service_completed_successfully}
+    storage-setup: {condition: service_completed_successfully}
+    redis: {condition: service_healthy}
+  restart: unless-stopped
+
 services:
+  storage-setup:
+    <<: *backend
+    command: [python, -m, vf_api.storage]
+    depends_on:
+      storage-init: {condition: service_completed_successfully}
+    restart: "no"
+    volumes: []
+
+  migrate:
+    <<: *backend
+    command: [python, -m, alembic, -c, services/api/alembic.ini, upgrade, head]
+    depends_on:
+      postgres: {condition: service_healthy}
+    restart: "no"
+    volumes: []
+
+  api:
+    <<: *backend
+    environment:
+      <<: *backend-env
+      JWT_SECRET: ${JWT_SECRET:?Run make env first}
+      CORS_ORIGINS: ${CORS_ORIGINS:-["http://localhost:3000","http://127.0.0.1:3000"]}
+    ports: ["127.0.0.1:${API_PORT:-8000}:8000"]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=3).close()"]
+      interval: 5s
+      timeout: 4s
+      retries: 20
+
+  worker-cpu:
+    <<: *backend
+    command: [python, -m, celery, -A, 'vf_worker.app:app', worker, --queues=cpu, --concurrency=2, --hostname=cpu@%h, --loglevel=WARNING]
+    healthcheck:
+      test: [CMD-SHELL, 'python -m celery -A vf_worker.app:app inspect ping -d "cpu@$$HOSTNAME" --timeout=5']
+      interval: 20s
+      timeout: 10s
+      retries: 6
+      start_period: 15s
+
+  beat:
+    <<: *backend
+    command: [python, -m, celery, -A, 'vf_worker.app:app', beat, --loglevel=WARNING, --schedule, /tmp/celerybeat-schedule]
+    volumes: []
+
   traefik:
     image: traefik:v3.7.16@sha256:c8a121e4bb1347e8fd52657fab12f2cb70b68f8a018895e2068f92c9e519b9c2
     command:
@@ -97,15 +202,20 @@ services:
   storage-init:
     image: visionforge-minio:2025-10-15
     platform: linux/amd64
-    profiles: [tools]
+    depends_on:
+      minio: {condition: service_healthy}
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-visionforge}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Run make env first}
+      S3_IMAGES_BUCKET: ${S3_IMAGES_BUCKET:-vf-images}
+      S3_DATASETS_BUCKET: ${S3_DATASETS_BUCKET:-vf-datasets}
+      S3_ARTIFACTS_BUCKET: ${S3_ARTIFACTS_BUCKET:-vf-artifacts}
+      S3_PREDICTIONS_BUCKET: ${S3_PREDICTIONS_BUCKET:-vf-predictions}
     entrypoint: [/bin/sh, -ec]
     command:
       - |
         mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" >/dev/null
-        mc mb --ignore-existing local/vf-images local/vf-datasets local/vf-artifacts local/vf-predictions
+        mc mb --ignore-existing "local/$$S3_IMAGES_BUCKET" "local/$$S3_DATASETS_BUCKET" "local/$$S3_ARTIFACTS_BUCKET" "local/$$S3_PREDICTIONS_BUCKET"
 
 networks:
   inference:

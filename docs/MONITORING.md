@@ -2,22 +2,15 @@
 
 New deployments record prediction images in private MinIO storage and results in
 PostgreSQL. Owner-scoped APIs expose history and monitoring aggregates. This is
-the backend implementation; the browser dashboard and review acceptance workflow
-remain frontend/active-learning work.
+the backend implementation; the browser dashboard remains frontend work.
+[Review acceptance](REVIEWS.md) now feeds corrected labels into the dataset.
 
 ## Setup
 
-From the repository root, rebuild inference and restart the API, CPU worker and
-Beat scheduler with the updated code:
-
-```bash
-make inference-image
-make gateway
-make api
-```
-
-Run `make worker` and `make beat` in separate terminals, with one Beat instance.
-The existing `make up` bootstrap creates the private `vf-predictions` bucket.
+From the repository root, run `make up` to rebuild and start the API, CPU worker,
+Beat scheduler, gateway and storage. See [backend operation](BACKEND.md).
+For native development, run `make worker` and one `make beat` separately.
+The bootstrap creates the private `vf-predictions` bucket.
 Stop and recreate existing deployments to enable logging; their running containers
 retain the old image. Model retraining is unnecessary.
 
@@ -108,7 +101,8 @@ aggregates use one PostgreSQL statement/snapshot to keep their totals consistent
 with UUID as the timestamp tie-breaker. Offset pages can shift as records arrive.
 
 Each item includes `id`, `deployment_id`, `model_id`, `model_version`, `output`,
-`max_confidence`, `latency_ms`, `sent_to_review`, `created_at`, `image_url`, and
+`max_confidence`, `latency_ms`, `sent_to_review`, `created_at`, `review_image_id`,
+`reviewed_at`, `image_url`, and
 `image_url_expires_in: 300`. Preview URLs grant private read access for five
 minutes; keep them private and request another history page after expiry. Both
 routes enforce ownership and return `Cache-Control: no-store`.
@@ -116,8 +110,8 @@ routes enforce ownership and return `Cache-Control: no-store`.
 Classification maximum confidence is the winning probability. Detection uses the
 highest returned box confidence, or zero for no boxes. `sent_to_review` is true
 only when this value is strictly below the saved deployment threshold (default
-0.6); equality is not flagged. This stores eligibility only; review queue and
-acceptance APIs are separate work. The plan's maximum-confidence rule can miss
+0.6); equality is not flagged. This historical flag remains true after
+[human acceptance](REVIEWS.md); pending review uses a separate receipt check. The plan's maximum-confidence rule can miss
 a low-confidence detection when another box in the same image is highly confident.
 
 ## Verification

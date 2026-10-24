@@ -81,6 +81,7 @@ class DeploymentSettings(EnvironmentSettings):
         default="visionforge_inference", pattern=r"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,62}$"
     )
     deployment_gateway_url: AnyHttpUrl = "http://127.0.0.1:8080"
+    deployment_gateway_probe_url: AnyHttpUrl | None = None
     deployment_cors_origins: list[AnyHttpUrl] = Field(
         default_factory=lambda: ["http://localhost:3000", "http://127.0.0.1:3000"]
     )
@@ -94,9 +95,11 @@ class DeploymentSettings(EnvironmentSettings):
     deployment_memory_mb: int = Field(default=1536, ge=512, le=8192)
     deployment_ready_seconds: int = Field(default=90, ge=5, le=300)
 
-    @field_validator("deployment_gateway_url")
+    @field_validator("deployment_gateway_url", "deployment_gateway_probe_url")
     @classmethod
     def gateway_origin(cls, value):
+        if value is None:
+            return value
         if (
             value.username
             or value.password

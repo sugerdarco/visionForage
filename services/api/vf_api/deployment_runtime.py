@@ -4,6 +4,7 @@ import json
 import subprocess
 from urllib.error import HTTPError, URLError
 from urllib.request import ProxyHandler, Request, build_opener
+from urllib.parse import urlsplit
 
 
 class DeploymentUnavailable(RuntimeError):
@@ -190,7 +191,13 @@ class DockerRuntime:
             raise DeploymentUnavailable("Invalid endpoint binding") from None
 
     def route_ready(self, info, spec):
-        request = Request(self.endpoint(info, spec["slug"]), data=b"", method="POST")
+        url = self.endpoint(info, spec["slug"])
+        if self.settings.deployment_gateway_probe_url is not None:
+            url = (
+                str(self.settings.deployment_gateway_probe_url).rstrip("/")
+                + urlsplit(url).path
+            )
+        request = Request(url, data=b"", method="POST")
         try:
             with build_opener(ProxyHandler({})).open(request, timeout=2):
                 return False

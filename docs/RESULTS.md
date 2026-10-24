@@ -357,7 +357,7 @@ depends on the pinned software, hardware, worker count and source revisions.
 - [x] Local PostgreSQL, MinIO and Redis services with Docker Compose; see [setup and checks](LOCAL.md).
 - [x] SQLAlchemy models and the first Alembic migration for all 11 application tables.
 - [x] FastAPI registration, login, token refresh and current-user endpoint; see [API setup](API.md).
-- [x] Project creation/list/read/rename, empty-project deletion and class batches with ownership checks and stable indices.
+- [x] Project creation/list/read/rename, asynchronous project deletion and class batches with ownership checks and stable indices.
 - [x] Presigned uploads, verified completion, project-scoped deduplication and private gallery reads.
 - [x] Local Celery CPU thumbnails with Redis delivery and periodic recovery of pending rows.
 - [x] Annotation reads and atomic saves with ownership checks, task-specific validation, retry-safe replacement and reviewed negative detection images; see [annotation API](ANNOTATIONS.md).
@@ -373,9 +373,12 @@ depends on the pinned software, hardware, worker count and source revisions.
 - [x] Inference Docker image, verified bundle preparation, owner-scoped deployment create/list/status/stop and one-time endpoint keys; see [local deployments](DEPLOYMENTS.md).
 - [x] Stable Traefik prediction routes, browser CORS, route readiness checks and separate API keys for concurrent deployments.
 - [x] Durable prediction logging, private image history, request counts, latency percentiles, class distribution and confidence histograms; see [monitoring](MONITORING.md).
-- [ ] Next backend increment: active-learning review queue and acceptance into the dataset.
-- [ ] Populated-project deletion with object-storage and job cleanup.
-- [ ] Later: active-learning comparison and notebook 03.
+- [x] Low-confidence review queue, retry-safe human acceptance and inclusion in new frozen versions; see [review API](REVIEWS.md).
+- [x] Populated-project deletion with training cancellation, container removal and retryable storage cleanup; see [deletion](PROJECT_DELETION.md).
+- [x] Complete local Compose backend with API, CPU worker, Beat, migrations and storage initialization; see [backend operation](BACKEND.md).
+- [ ] Frontend screens and integration with these backend APIs.
+- [ ] Active-learning comparison and notebook 03.
+- [ ] Final browser workflow verification and demo after frontend integration.
 
 Remote account names and filesystem paths in published examples and the detector
 snapshot are placeholders. Recorded metrics and artifact hashes are unchanged;

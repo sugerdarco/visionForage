@@ -1,6 +1,7 @@
 # Local application services
 
-PostgreSQL, Redis, MinIO and Traefik run in local Docker Compose. The remote GPU machine
+The API, CPU worker, Beat, PostgreSQL, Redis, MinIO and Traefik run in local Docker Compose.
+See [BACKEND.md](BACKEND.md) for the complete startup and process connections. The remote GPU machine
 runs training in its existing user-owned Python environment; it needs neither
 sudo nor Docker. This follows our available machines rather than the original
 plan's assumption that the whole stack runs on the GPU server.
@@ -61,14 +62,15 @@ The credentials are for this local development stack. PostgreSQL's initial user
 is an administrator and MinIO uses its root account; application-specific roles
 and storage policies belong with the API/worker integration.
 
-`make up` waits for healthy services, then creates four buckets idempotently:
+`make up` builds backend/inference images, waits for healthy dependencies, applies
+migrations, configures upload expiry and creates four buckets idempotently:
 `vf-images`, `vf-datasets`, `vf-artifacts`, and `vf-predictions`. New buckets are
 private by default. Object keys will follow the build plan's project/job layout.
 Rerunning bootstrap keeps existing data and bucket policies.
 
 ## Connections
 
-| Service | From the local host | From future Compose containers |
+| Service | From the local host | From Compose containers |
 | --- | --- | --- |
 | PostgreSQL | `127.0.0.1:5432` | `postgres:5432` |
 | Redis | `127.0.0.1:6379` | `redis:6379` |
@@ -136,8 +138,7 @@ inside an existing PostgreSQL volume; that requires an explicit database change.
 Redis uses append-only persistence with `appendfsync everysec`. This can lose
 roughly the last second of writes after a crash, and Pub/Sub events are not
 replayed. `noeviction` avoids silently discarding queued jobs when a memory limit
-is configured; it does not make the queue an exactly-once delivery system. Later
-workers will need retry-safe tasks and durable job status in PostgreSQL.
+is configured; it does not make the queue an exactly-once delivery system. Workers use retry-safe tasks and durable job status in PostgreSQL.
 [Redis persistence](https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/)
 and [PostgreSQL image initialization](https://hub.docker.com/_/postgres) describe
 these storage behaviors.
@@ -157,4 +158,4 @@ tested Python environment because the remote account has no Docker access.
 Verified on 2026-10-19 with Docker Desktop Engine 29.3.1 and Compose 5.6.0:
 startup with empty volumes, repeated bootstrap, authenticated reads/writes,
 access rejection and persistence across container recreation. All 109 Python
-tests and lint passed. Remote worker integration remains a later task.
+tests and lint passed. Remote worker integration was subsequently verified; see [GPU_WORKER.md](GPU_WORKER.md).
