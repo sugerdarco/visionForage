@@ -65,17 +65,24 @@ CurrentUser = Annotated[User, Depends(current_user)]
 
 
 def owned_project(
-    project_id: UUID, session: Session, user: User, *, lock: bool = False
+    project_id: UUID,
+    session: Session,
+    user: User,
+    *,
+    lock: bool = False,
+    allow_deleting: bool = False,
 ) -> Project:
     statement = select(Project).where(
         Project.id == project_id, Project.owner_id == user.id
     )
     if lock:
         statement = statement.with_for_update()
-    project = session.scalar(statement)
+    project = session.scalar(statement.execution_options(populate_existing=True))
     if project is None:
         # A foreign ID and a missing ID have the same public response.
         raise HTTPException(status_code=404, detail="Project not found")
+    if project.deleting and not allow_deleting:
+        raise HTTPException(status_code=409, detail="Project deletion is in progress")
     return project
 
 

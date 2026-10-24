@@ -64,6 +64,8 @@ class PredictionView(BaseModel):
     created_at: datetime
     image_url: str
     image_url_expires_in: int = 300
+    review_image_id: UUID | None = None
+    reviewed_at: datetime | None = None
 
 
 class PredictionPage(BaseModel):

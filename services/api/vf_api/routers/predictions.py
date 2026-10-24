@@ -50,6 +50,8 @@ def list_predictions(
                 sent_to_review=row.sent_to_review,
                 created_at=row.created_at,
                 image_url=store.url(row.image_key),
+                review_image_id=row.review_image_id,
+                reviewed_at=row.reviewed_at,
             )
             for row in rows
         ],
