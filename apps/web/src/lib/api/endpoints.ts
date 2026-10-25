@@ -1,6 +1,14 @@
 import { apiClient, type ApiClient } from "./client";
 import type {
   AnnotationSave,
+  Deployment,
+  DeploymentCreated,
+  DeploymentCreate,
+  DeploymentPage,
+  PredictionPage,
+  DeploymentStats,
+  ReviewAccept,
+  ReviewReceipt,
   Evaluation,
   Artifact,
   ArtifactDownload,
@@ -160,6 +168,35 @@ export function createApi(client: ApiClient) {
           if (result.items.length === 0 || page * result.page_size >= result.total) return rows;
         }
       },
+    },
+    deployments: {
+      list: (projectId: string, page = 1, signal?: AbortSignal) =>
+        client.get<DeploymentPage>(`/projects/${projectId}/deployments`, {
+          query: { page, page_size: 100 },
+          signal,
+        }),
+      get: (id: string, signal?: AbortSignal) =>
+        client.get<Deployment>(`/deployments/${id}`, { signal }),
+      create: (modelId: string, body: DeploymentCreate) =>
+        client.post<DeploymentCreated>(`/models/${modelId}/deployments`, body).then((r) => r.data),
+      stop: (id: string) =>
+        client.request<Deployment>("DELETE", `/deployments/${id}`).then((r) => r.data),
+      stats: (id: string, window: DeploymentStats["window"], signal?: AbortSignal) =>
+        client.get<DeploymentStats>(`/deployments/${id}/stats`, { query: { window }, signal }),
+      predictions: (id: string, page: number, signal?: AbortSignal) =>
+        client.get<PredictionPage>(`/deployments/${id}/predictions`, {
+          query: { page, page_size: 20 },
+          signal,
+        }),
+    },
+    reviews: {
+      list: (projectId: string, page: number, signal?: AbortSignal) =>
+        client.get<PredictionPage>(`/projects/${projectId}/review-queue`, {
+          query: { page, page_size: 20 },
+          signal,
+        }),
+      accept: (id: string, body: ReviewAccept) =>
+        client.post<ReviewReceipt>(`/review/${id}/accept`, body).then((r) => r.data),
     },
     models: {
       evaluation: (modelId: string, signal?: AbortSignal) =>

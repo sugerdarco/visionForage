@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/page-header";
@@ -33,6 +34,12 @@ export function ModelActions({ model }: { model: ModelDetail }) {
   }
   return (
     <div className="mt-4 border-t border-line pt-4">
+      <Link
+        className="mb-3 block text-accent underline"
+        href={`/projects/${model.project_id}/deployments?model=${model.id}`}
+      >
+        Deploy this model
+      </Link>
       <Button variant="primary" busy={busy} disabled={model.is_promoted} onClick={promote}>
         {model.is_promoted ? "Preferred model" : "Use as preferred model"}
       </Button>

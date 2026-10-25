@@ -52,18 +52,50 @@ local Docker Desktop socket; on Docker Engine set it to the socket's actual grou
 if needed. This grants socket access without running the application as root.
 The socket gives these trusted control services authority over the local daemon.
 
-Artifact subdirectories are mounted at the same absolute paths inside and outside
-the backend containers. This matters because Docker resolves inference bind
-mounts on the daemon host, as described in the [Docker bind-mount documentation](https://docs.docker.com/engine/storage/bind-mounts/).
-Native `DEPLOYMENT_WORK_DIR` and `PREDICTION_LOG_DIR` settings must resolve to the
-`deployments` and `predictions` subdirectories of `ARTIFACTS_DIR`. Remote Docker
-contexts are unsupported. Keep paths and deployment namespace stable while models
-are deployed. Backend containers have a read-only root, private writable mounts,
+Compose uses Docker-managed volumes `visionforge_serving_bundles` and
+`visionforge_serving_predictions` for deployment bundles and pending prediction logs.
+The API and CPU worker share these volumes; each inference container mounts only
+its own deployment UUID subdirectory (bundle read-only, outbox writable). This
+requires an engine with `volume-subpath` support; the local engine was verified
+at 29.9.1. A one-shot container initializes private volume ownership, then application
+services run under the configured non-root UID. This avoids the observed Docker
+Desktop host-file-sharing stalls during deployment creation and cleanup.
+
+Native development still supports host paths through `DEPLOYMENT_WORK_DIR` and
+`PREDICTION_LOG_DIR`, with no volume settings. Do not mix a native collector with
+Compose serving storage. Remote Docker contexts remain unsupported. Keep volume
+names and the deployment namespace stable while models are deployed. The old
+`ARTIFACTS_DIR` setting now applies to native development, not Compose serving data.
+
+Backend containers have a read-only root, private writable mounts,
 a temporary directory, an init process to reap children, dropped capabilities and
 bounded rotating logs. Beat keeps its disposable schedule file in container tmpfs:
 host-mounted database files blocked scheduler shutdown on the tested Docker Desktop
 filesystem. A restart resets periodic timing; durable jobs and cleanup requests
 remain in PostgreSQL and the next scheduled scan recovers them.
+
+### Upgrade from host serving directories
+
+Before switching an existing installation, stop its inference endpoints and allow
+pending prediction collection to finish. Stop the API/CPU worker/Beat, then copy any
+remaining bundles and pending logs into the new volumes before `make up`:
+
+```bash
+docker volume create visionforge_serving_bundles
+docker volume create visionforge_serving_predictions
+# Set SERVING_SOURCE to the old directory containing deployments/ and predictions/.
+tar -C "$SERVING_SOURCE" -cf - deployments predictions | docker run --rm -i \
+  --network none --user 0:0 \
+  -v visionforge_serving_bundles:/restore/deployments \
+  -v visionforge_serving_predictions:/restore/predictions \
+  visionforge-backend:0.1.0 tar -xf - -C /restore
+make up
+```
+
+Keep the old directories until collection and cleanup are verified. Do not delete
+Docker volumes during this upgrade. If Docker Desktop cannot stop a process stuck
+on its old shared filesystem, restart Desktop before recreating the services.
+PostgreSQL, Redis and MinIO volumes are unchanged by this migration.
 
 ## Operation
 

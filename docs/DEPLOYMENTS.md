@@ -53,9 +53,10 @@ The default setup is local HTTP, with no internet exposure or TLS provisioning.
 API and browser clients use the same loopback gateway. A remote/public installation
 needs its own HTTPS ingress configuration before sending endpoint keys over a network.
 
-Use a local Docker context (including local Docker Desktop). Remote Docker contexts
-are unsupported because bind mount paths and endpoint loopback addresses must
-refer to this machine. Keep the namespace and work directory stable while any
+Use a local Docker context (including local Docker Desktop). Compose serving storage
+uses named-volume subpaths (verified with Docker Engine 29.9.1); native development defaults to bind
+mounts. Remote contexts remain unsupported because endpoint loopback addresses
+must refer to this machine. See [backend storage](BACKEND.md#local-paths-and-identity). Keep the namespace and work directory stable while any
 deployment exists. One control installation owns that namespace; do not share it
 between independent databases. The API must have write access to the work directory,
 which is created with mode `0700`; an existing directory must also be private.
@@ -211,3 +212,22 @@ boxes/scores within `1e-6`. Both deployments stopped and cleaned up afterward. T
 checks serving compatibility, not a new quality or latency benchmark. Raw test
 logs, endpoint keys, artifact paths and binary models remain outside Git.
 The same 64 real-model checks also passed through Traefik after the routing update.
+
+## Browser workflow
+
+Open a project → Models → Deploy this model, or use Deployments directly. Set an
+optional endpoint name and review threshold, then save the one-time key. The page
+can send a JPEG/PNG prediction using that key without the account bearer token.
+Navigating away clears the key from page memory. If creation's response is lost,
+check the endpoint list before retrying; a lost key requires a replacement endpoint.
+
+Monitoring shows recorded request counts, mean/p50/p95 latency, class/confidence
+histograms, a latency plot for the current history page and private input previews.
+The selected time window applies to aggregate statistics; history is separately
+paginated across all recorded requests. Rejected requests are excluded.
+
+Review allows class correction, normalized box drawing/editing and explicit negative
+detection labels. Acceptance stores human annotations and removes the queue item.
+Create a new dataset version and training run to use them; old versions remain frozen.
+Promotion changes the preferred model, while deployment chooses a particular version.
+Stop the old endpoint after verifying its replacement.

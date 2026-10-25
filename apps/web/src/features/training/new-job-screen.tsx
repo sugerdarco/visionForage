@@ -1,6 +1,6 @@
 "use client";
 
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
@@ -21,34 +21,47 @@ export function NewJobScreen() {
   const projectId = useProjectId();
   const project = useProject(projectId);
   const versions = useVersionIndex(projectId);
-  if (!project.data || versions.isPending) return <LoadingState label="Loading" />;
+  const requested = useSearchParams().get("version");
+  const requestedVersion = useQuery({
+    queryKey: ["version", projectId, requested],
+    queryFn: ({ signal }) => api.versions.get(projectId, requested!, signal),
+    enabled: !!requested,
+  });
+  if (!project.data || versions.isPending || (requested && requestedVersion.isPending))
+    return <LoadingState label="Loading" />;
+  if (requested && requestedVersion.isError)
+    return <ErrorState error={requestedVersion.error} onRetry={() => requestedVersion.refetch()} />;
   if (versions.isError)
     return <ErrorState error={versions.error} onRetry={() => versions.refetch()} />;
+  const items =
+    requestedVersion.data && !versions.data.byId.has(requestedVersion.data.id)
+      ? [requestedVersion.data, ...versions.data.items]
+      : versions.data.items;
   return (
     <NewJobForm
+      key={`${projectId}:${requested ?? "latest"}`}
+      initialVersionId={requested ?? items[0]?.id ?? ""}
       projectId={projectId}
       task={project.data.task_type as TaskType}
-      versions={versions.data}
+      versions={{ ...versions.data, items, byId: new Map(items.map((v) => [v.id, v])) }}
     />
   );
 }
 
 function NewJobForm({
+  initialVersionId,
   projectId,
   task,
   versions,
 }: {
+  initialVersionId: string;
   projectId: string;
   task: TaskType;
   versions: NonNullable<ReturnType<typeof useVersionIndex>["data"]>;
 }) {
   const router = useRouter();
-  const params = useSearchParams();
   const queryClient = useQueryClient();
-  const requested = params.get("version");
-  const [versionId, setVersionId] = useState(
-    requested && versions.byId.has(requested) ? requested : (versions.items[0]?.id ?? ""),
-  );
+  const [versionId, setVersionId] = useState(initialVersionId);
   const [values, setValues] = useState<ParamValues>(() => initialValues(task));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);

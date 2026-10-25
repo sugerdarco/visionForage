@@ -20,6 +20,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("project_id", type=UUID)
 parser.add_argument("email")
 parser.add_argument("task", choices=("classification", "detection"))
+parser.add_argument("--version-count", type=int, choices=(1, 2), default=1)
 args = parser.parse_args()
 if not args.email.startswith("e2e-model-") or not args.email.endswith("@example.com"):
     parser.error("Only a generated model-test account is allowed")
@@ -34,9 +35,14 @@ try:
             .where(Project.id == args.project_id, User.email == args.email)
         )
         if project is None or project.task_type != args.task or project.deleting:
-            parser.error("The test account must own an active project of the requested task")
+            parser.error(
+                "The test account must own an active project of the requested task"
+            )
         fixture.project_id = project.id
-        fixture.version_id = fixture.add_version(session, project.id).id
+        for number in range(1, args.version_count + 1):
+            fixture.version_id = fixture.add_version(
+                session, project.id, number=number
+            ).id
         session.commit()
     fixture.publish(detection=args.task == "detection")
     print(fixture.model_id)

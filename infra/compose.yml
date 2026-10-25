@@ -25,8 +25,10 @@ x-backend-env: &backend-env
   DEPLOYMENT_CPU_THREADS: ${DEPLOYMENT_CPU_THREADS:-2}
   DEPLOYMENT_MEMORY_MB: ${DEPLOYMENT_MEMORY_MB:-1536}
   DEPLOYMENT_READY_SECONDS: ${DEPLOYMENT_READY_SECONDS:-90}
-  DEPLOYMENT_WORK_DIR: ${ARTIFACTS_DIR:-/app/artifacts}/deployments
-  PREDICTION_LOG_DIR: ${ARTIFACTS_DIR:-/app/artifacts}/predictions
+  DEPLOYMENT_WORK_DIR: /app/serving/deployments
+  PREDICTION_LOG_DIR: /app/serving/predictions
+  DEPLOYMENT_BUNDLE_VOLUME: visionforge_serving_bundles
+  DEPLOYMENT_PREDICTION_VOLUME: visionforge_serving_predictions
   DEPLOYMENT_GATEWAY_URL: ${DEPLOYMENT_GATEWAY_URL:-http://127.0.0.1:8080}
   DEPLOYMENT_GATEWAY_PROBE_URL: http://traefik:8000
   DEPLOYMENT_CORS_ORIGINS: ${DEPLOYMENT_CORS_ORIGINS:-["http://localhost:3000","http://127.0.0.1:3000"]}
@@ -51,17 +53,39 @@ x-backend: &backend
     driver: json-file
     options: {max-size: 10m, max-file: "2"}
   volumes:
-    - ${ARTIFACTS_DIR:-../artifacts}/deployments:${ARTIFACTS_DIR:-/app/artifacts}/deployments
-    - ${ARTIFACTS_DIR:-../artifacts}/predictions:${ARTIFACTS_DIR:-/app/artifacts}/predictions
+    - serving_bundles:/app/serving/deployments
+    - serving_predictions:/app/serving/predictions
     - /var/run/docker.sock:/var/run/docker.sock:ro
   networks: [default, inference]
   depends_on:
+    serving-storage-init: {condition: service_completed_successfully}
     migrate: {condition: service_completed_successfully}
     storage-setup: {condition: service_completed_successfully}
     redis: {condition: service_healthy}
   restart: unless-stopped
 
 services:
+  serving-storage-init:
+    image: visionforge-backend:0.1.0
+    profiles: [backend]
+    user: "0:0"
+    read_only: true
+    network_mode: none
+    cap_drop: [ALL]
+    cap_add: [CHOWN, FOWNER, DAC_OVERRIDE]
+    security_opt: [no-new-privileges:true]
+    environment:
+      SERVING_UID: ${LOCAL_UID:-1000}
+      SERVING_GID: ${LOCAL_GID:-1000}
+    volumes:
+      - serving_bundles:/bundles
+      - serving_predictions:/predictions
+    command:
+      - python
+      - -c
+      - "import os; [(os.chown(p, int(os.environ['SERVING_UID']), int(os.environ['SERVING_GID'])), os.chmod(p, 0o700)) for p in ('/bundles', '/predictions')]"
+    restart: "no"
+
   web:
     image: visionforge-web:0.1.0
     build:
@@ -250,6 +274,10 @@ networks:
     name: ${DEPLOYMENT_NETWORK:-visionforge_inference}
 
 volumes:
+  serving_bundles:
+    name: visionforge_serving_bundles
+  serving_predictions:
+    name: visionforge_serving_predictions
   pg_data:
   redis_data:
   minio_data:

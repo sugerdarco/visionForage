@@ -17,6 +17,33 @@ class RuntimeTest(unittest.TestCase):
         self.runtime = DockerRuntime(DeploymentSettings())
         self.spec = {name: uuid4() for name in ("id", "model_id", "project_id")}
 
+    def test_volume_mounts_are_scoped_to_the_deployment(self):
+        self.runtime.settings = DeploymentSettings(
+            deployment_bundle_volume="test-bundles",
+            deployment_prediction_volume="test-predictions",
+        )
+        spec = {
+            **self.spec,
+            "model_version": 1,
+            "slug": "test",
+            "key_hash": "a" * 64,
+            "model": {"sha256": "b" * 64},
+            "metadata": {"sha256": "c" * 64},
+            "outbox": Path("/private/outbox"),
+        }
+        with patch.object(self.runtime, "command") as command:
+            self.runtime.create(spec, Path("/private/bundle"), "sha256:image")
+        args = command.call_args.args
+        mounts = [args[i + 1] for i, value in enumerate(args) if value == "--mount"]
+        self.assertEqual(
+            mounts,
+            [
+                f"type=volume,src=test-bundles,dst=/bundle,volume-subpath={spec['id']},readonly,volume-nocopy",
+                f"type=volume,src=test-predictions,dst=/outbox,volume-subpath={spec['id']},volume-nocopy",
+            ],
+        )
+        self.assertNotIn("/private", " ".join(args))
+
     def test_foreign_labels_prevent_start_and_removal(self):
         info = {"Id": "foreign", "Config": {"Labels": self.runtime.labels(self.spec)}}
         info["Config"]["Labels"]["io.visionforge.project"] = str(uuid4())

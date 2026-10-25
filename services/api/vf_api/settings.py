@@ -76,6 +76,12 @@ class QueueSettings(EnvironmentSettings):
 
 
 class DeploymentSettings(EnvironmentSettings):
+    deployment_bundle_volume: str | None = Field(
+        default=None, pattern=r"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$"
+    )
+    deployment_prediction_volume: str | None = Field(
+        default=None, pattern=r"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$"
+    )
     prediction_log_dir: Path = Path("artifacts/predictions")
     deployment_network: str = Field(
         default="visionforge_inference", pattern=r"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,62}$"

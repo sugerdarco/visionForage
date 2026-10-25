@@ -13,6 +13,9 @@ const NAV = [
   { href: "training", label: "Training", hint: "Runs and live progress" },
   { href: "compare", label: "Compare runs", hint: "Parameters and curves" },
   { href: "models", label: "Models", hint: "Registered results" },
+  { href: "deployments", label: "Deployments", hint: "Endpoints and prediction tests" },
+  { href: "monitoring", label: "Monitoring", hint: "Traffic, confidence and history" },
+  { href: "review", label: "Review", hint: "Correct uncertain predictions" },
   { href: "settings", label: "Settings", hint: "Name and classes" },
 ];
 

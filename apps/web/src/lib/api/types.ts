@@ -41,6 +41,15 @@ export type ModelPage = Schemas["ModelPage"];
 export type Evaluation = Schemas["ClassificationEvaluation"] | Schemas["DetectionEvaluation"];
 export type Artifact = Schemas["ArtifactResponse"];
 export type ArtifactDownload = Schemas["ArtifactDownload"];
+export type Deployment = Schemas["DeploymentResponse"];
+export type DeploymentCreated = Schemas["DeploymentCreated"];
+export type DeploymentCreate = Schemas["DeploymentCreate"];
+export type DeploymentPage = Schemas["DeploymentPage"];
+export type Prediction = Schemas["PredictionView"];
+export type PredictionPage = Schemas["PredictionPage"];
+export type DeploymentStats = Schemas["DeploymentStats"];
+export type ReviewAccept = Schemas["ReviewAccept"];
+export type ReviewReceipt = Schemas["ReviewReceipt"];
 export type ValidationIssue = Schemas["ValidationError"];
 
 export type TaskType = "classification" | "detection";

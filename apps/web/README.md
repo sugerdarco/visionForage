@@ -89,6 +89,8 @@ src/features/annotations/ classification + detection editors, save queue, label 
 src/features/datasets/   version list/create/detail
 src/features/training/   run list, submit form, live detail, comparison
 src/features/models/     registry, test evaluation, artifact downloads and promotion
+src/features/deployments/ endpoint controls, prediction tester and monitoring
+src/features/review/     classification/box corrections and human acceptance
 src/lib/api/             generated schema, typed client, endpoints, signed-storage PUT
 src/lib/events/          SSE parser and reconnecting job stream
 src/lib/geometry/        image/normalized/screen coordinate transforms
@@ -112,6 +114,9 @@ All paths are under `/api/v1`.
 | Training           | `/projects/[id]/training`, `/training/new`, `/training/[jobId]` | `GET/POST /projects/{id}/jobs`, `GET /jobs/{id}`, `POST /jobs/{id}/cancel`, `GET /jobs/{id}/metrics`, `GET /jobs/{id}/events`                                        |
 | Compare runs       | `/projects/[id]/compare`                                        | `GET /jobs/{id}`, `GET /jobs/{id}/metrics` (all pages)                                                                                                               |
 | Models             | `/projects/[id]/models`                                         | `GET /projects/{id}/models`, `GET /models/{id}`, `GET /models/{id}/evaluation`, `GET /models/{id}/artifacts[/{artifact}]`, `POST /models/{id}/promote`               |
+| Deployments        | `/projects/[id]/deployments`                                    | `POST /models/{id}/deployments`, `GET /projects/{id}/deployments`, `GET/DELETE /deployments/{id}`; keyed prediction through the gateway                              |
+| Monitoring         | `/projects/[id]/monitoring`                                     | `GET /deployments/{id}/stats`, `GET /deployments/{id}/predictions`                                                                                                   |
+| Review             | `/projects/[id]/review`                                         | `GET /projects/{id}/review-queue`, `POST /review/{id}/accept`                                                                                                        |
 
 ## Behaviour worth knowing
 
@@ -167,16 +172,18 @@ create uniquely named accounts in the local application database and never delet
 | `tests/e2e/failures.spec.ts`       | Real accounts + mocked failures        | API unavailable, token expiry/refresh and refresh failure, failed annotation save, partial storage-PUT failure, expired signed URL, version validation, uncertain POST, SSE disconnect + `Last-Event-ID` replay + terminal stop, pending cancellation, unknown resources                                                                                                                                                                                                                 |
 | `tests/e2e/accessibility.spec.ts`  | Real API                               | Keyboard-only sign-in, inline errors, dialog focus restoration, visible focus, phone-width layout                                                                                                                                                                                                                                                                                                                                                                                        |
 
-The browser tests never start GPU training: the one real job they submit is cancelled while
-queued. Executing real training needs the GPU worker and is outside these checks.
+The standard browser tests cancel submitted jobs while queued. The separately opted-in
+`live-training.spec.ts` performs real training, review and redeployment; see [the walkthrough](../../docs/DEMO.md).
 
 ## Known limitations and missing backend contracts
 
 - **Session persistence:** reload signs out (by design for this increment). Persistent sessions
   need an agreed HttpOnly-cookie or BFF contract.
-- **Deployment, monitoring and review screens:** these were outside the supplied frontend
-  handoff. Their backend APIs are implemented; this integration covers the supplied
-  data/training screens plus current model reports, downloads, promotion and project deletion.
+- **Deployments:** create/stop endpoints, copy the one-time key and test JPEG/PNG predictions.
+- **Monitoring:** request counts, latency percentiles/history plot, class distribution,
+  confidence histogram and private prediction history.
+- **Review:** correct classes or boxes, accept reviewed negatives, then freeze a new
+  version for retraining. Failed acceptance retains the draft for an explicit retry.
 - **Deletion:** populated projects can be deleted. The UI shows pending cleanup, disables
   editing, and polls until removal. Individual images and frozen versions have no delete API.
 
@@ -203,7 +210,21 @@ against undiscovered issues.
 missing-artifact errors. It uses the root `.venv` and API integration fixtures to seed synthetic
 reports into a newly created, explicitly owned test project; these are not trained models or
 quality measurements. Cleanup requests delete only those test projects. Other browser tests
-create isolated accounts and sample images. No GPU worker should consume the test job queue.
+create isolated accounts and sample images. No GPU worker should consume the test job queue during the normal regression suite.
+`deployments.spec.ts` uses a tiny RGB-mean ONNX fixture and real Docker inference,
+collection, review and version creation. `review.spec.ts` checks actual acceptance
+of corrected detection boxes and reviewed negatives using seeded predictions.
+
+`live-training.spec.ts` is separately opt-in: set `E2E_REAL_TRAINING=1`,
+`E2E_CASTING_ARCHIVE` (240 labeled casting images in ImageFolder ZIP form), and
+`E2E_CASTING_IMAGE` (a different, known defective image). Start an allocated GPU worker
+and run `npm run test:e2e -- live-training.spec.ts`. It runs two real two-epoch jobs,
+checks ONNX parity reports, deploys both resulting models, accepts the correction
+and verifies the next version contains it. It records a local video and result JSON.
+`E2E_KEEP_DEMO=1` retains the demo project; both endpoints are stopped at the end.
+These short jobs verify integration, not baseline model quality. The training form loads
+a directly requested version even if its cached list is older, and resets its selection
+when the requested version changes. `training-version.spec.ts` covers that regression.
 
 The production image uses a digest-pinned Node 22 base, a standalone Next.js build and a
 non-root runtime with a read-only filesystem. `WEB_API_BASE_URL` is a public, build-time URL;
@@ -212,8 +233,9 @@ hostname. `WEB_PORT` defaults to 3000; if changing the browser origin, update AP
 inference CORS settings to match. No service credentials enter the frontend build context.
 
 Verification completed on 2026-10-25: type checking, lint, formatting, 30 unit tests,
-production builds and the production Compose health checks passed. Of 16 browser
-scenarios, 15 passed in the production suite; the detection reload assertion was
-corrected to compare both box sets without depending on UUID row order, and that
-scenario then passed on rerun. Both model report types, promotion and actual private
-artifact downloads passed. The dependency audit reported zero known vulnerabilities.
+production builds and Compose health checks passed. The 19 standard browser scenarios
+and the separate real-GPU scenario passed, including the stale-version regression,
+actual inference/collection, both review editors and retraining/redeployment.
+The backend suite passed 100 tests. Production dependency audit reported zero known
+vulnerabilities. See the [recorded workflow](../../docs/results/browser-workflow-20261025.json)
+and [walkthrough](../../docs/DEMO.md). Raw traces, video and access details stay local.

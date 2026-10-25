@@ -1,0 +1,204 @@
+{
+  "accepted_image_in_new_version": true,
+  "accepted_image_split": "train",
+  "backend_tests": 100,
+  "frontend_unit_tests": 30,
+  "live_gpu_browser_scenarios": 1,
+  "original_version_unchanged": true,
+  "passed": true,
+  "purpose": "Real browser-to-GPU integration verification; two-epoch models are not quality benchmarks",
+  "recorded_date": "2026-10-25",
+  "runs": [
+    {
+      "artifact_sha256": {
+        "evaluation.json": "c582062a0e936e131ff02d0d9342a3eca7830fbe7daa707e0c3bad996e234fb3",
+        "manifest.json": "adad71fadf9cc74fd79ee8f86aaf31836b8c5b82ef081b0229f2c7c4e45c9905",
+        "onnx/model.onnx": "4eea72513a01457fc08603bf8eeed606086ec9d5928400414a3dfa6ff7e3d77d",
+        "run/best.pt": "9125b385df5a436b165ffc55a1a94eaac5e178a1f575b7e7fdfcd034eacc5b71"
+      },
+      "checkpoint_epoch": 2,
+      "deployment_status": "stopped",
+      "epochs": 2,
+      "images": {
+        "test": 36,
+        "train": 168,
+        "val": 36
+      },
+      "job_status": "succeeded",
+      "latency": {
+        "batch_size": 1,
+        "mean_ms": 17.090438974555582,
+        "measured_runs": 200,
+        "p95_ms": 17.02244719490409,
+        "warmup_runs": 10
+      },
+      "model_arch": "resnet18",
+      "parity": {
+        "absolute_tolerance": 0.001,
+        "batch_sizes": [
+          1,
+          8
+        ],
+        "box_absolute_tolerance": null,
+        "max_absolute_error": 7.003545761108398e-07,
+        "max_box_absolute_error": null,
+        "max_score_absolute_error": null,
+        "passed": true,
+        "relative_tolerance": 0.0,
+        "samples": 32,
+        "score_absolute_tolerance": null,
+        "split": "test"
+      },
+      "recorded_predictions": 1,
+      "selection_val_loss": 0.7015365958213806,
+      "test_metrics": {
+        "accuracy": 0.5,
+        "confusion_matrix": {
+          "class_names": [
+            "ok",
+            "defective"
+          ],
+          "columns": "predicted",
+          "counts": [
+            [
+              18,
+              0
+            ],
+            [
+              18,
+              0
+            ]
+          ],
+          "rows": "true"
+        },
+        "loss": 0.696492669600822,
+        "macro_f1": 0.3333333333333333,
+        "per_class": {
+          "defective": {
+            "f1": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "roc_auc": 0.6574074074074074,
+            "support": 18
+          },
+          "ok": {
+            "f1": 0.6666666666666666,
+            "precision": 0.5,
+            "recall": 1.0,
+            "roc_auc": 0.6574074074074074,
+            "support": 18
+          }
+        },
+        "positive_class": "defective",
+        "roc_auc": 0.6574074074074074,
+        "roc_auc_method": "binary",
+        "samples": 36,
+        "zero_division": 0
+      },
+      "version": 1
+    },
+    {
+      "artifact_sha256": {
+        "evaluation.json": "c38ebc5740935b1d49dc5ef08014dabf4cb53626f2258717a9eecb7ca6c85e90",
+        "manifest.json": "95bb031cc646f574749d72f0d0098d401af9fd9ff31aba3918f2f3cedfb3438d",
+        "onnx/model.onnx": "4dc27107d3b8bc722059b2cabb16ea31a0d2b29c92adfd38679e7063af924141",
+        "run/best.pt": "c9843fbf08681c3df1dffab77f2b464018eaa364ff028d401c9580d2c781f237"
+      },
+      "checkpoint_epoch": 2,
+      "deployment_status": "stopped",
+      "epochs": 2,
+      "images": {
+        "test": 36,
+        "train": 169,
+        "val": 36
+      },
+      "job_status": "succeeded",
+      "latency": {
+        "batch_size": 1,
+        "mean_ms": 17.15202723396942,
+        "measured_runs": 200,
+        "p95_ms": 17.08234418183565,
+        "warmup_runs": 10
+      },
+      "model_arch": "resnet18",
+      "parity": {
+        "absolute_tolerance": 0.001,
+        "batch_sizes": [
+          1,
+          8
+        ],
+        "box_absolute_tolerance": null,
+        "max_absolute_error": 6.034970283508301e-07,
+        "max_box_absolute_error": null,
+        "max_score_absolute_error": null,
+        "passed": true,
+        "relative_tolerance": 0.0,
+        "samples": 32,
+        "score_absolute_tolerance": null,
+        "split": "test"
+      },
+      "recorded_predictions": 1,
+      "selection_val_loss": 0.699774980545044,
+      "test_metrics": {
+        "accuracy": 0.5,
+        "confusion_matrix": {
+          "class_names": [
+            "ok",
+            "defective"
+          ],
+          "columns": "predicted",
+          "counts": [
+            [
+              18,
+              0
+            ],
+            [
+              18,
+              0
+            ]
+          ],
+          "rows": "true"
+        },
+        "loss": 0.6954798188918859,
+        "macro_f1": 0.3333333333333333,
+        "per_class": {
+          "defective": {
+            "f1": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "roc_auc": 0.6604938271604939,
+            "support": 18
+          },
+          "ok": {
+            "f1": 0.6666666666666666,
+            "precision": 0.5,
+            "recall": 1.0,
+            "roc_auc": 0.6604938271604939,
+            "support": 18
+          }
+        },
+        "positive_class": "defective",
+        "roc_auc": 0.6604938271604939,
+        "roc_auc_method": "binary",
+        "samples": 36,
+        "zero_division": 0
+      },
+      "version": 2
+    }
+  ],
+  "standard_browser_scenarios": 19,
+  "steps": [
+    "ImageFolder import",
+    "freeze version",
+    "GPU training and live progress",
+    "model evaluation and promotion",
+    "Docker deployment",
+    "authenticated prediction",
+    "automatic monitoring collection",
+    "human review acceptance",
+    "freeze updated version",
+    "GPU retraining",
+    "replacement deployment and prediction",
+    "stop both endpoints"
+  ]
+}

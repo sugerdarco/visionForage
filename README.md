@@ -593,7 +593,7 @@ The check uses four training images for a forward pass, finite loss and gradient
 checks, and one optimizer update. It does not save a trained checkpoint or report
 accuracy. Add `--device cuda` only after selecting one available GPU with
 `CUDA_VISIBLE_DEVICES`. This step was verified on CPU locally and inside the VM's
-CUDA environment; the shared VM GPUs were busy, so GPU model execution is pending.
+CUDA environment. Subsequent real GPU training and held-out results are recorded in [RESULTS.md](docs/RESULTS.md).
 
 The first pretrained run downloads about 45 MB into the chosen user-writable
 cache. Reuse that cache with `HF_HUB_OFFLINE=1` for offline runs. A failed download
@@ -1153,3 +1153,15 @@ Private service connections between the machines will use SSH forwarding. This
 avoids exposing database and queue ports, but requires the local machine and
 tunnel to remain available during integrated training. The ML baselines run
 directly on the remote host without these application services.
+
+### Active-learning result
+
+The completed [10% seed + 200-label comparison](docs/RESULTS.md#active-learning-comparison-2026-10-25)
+scored **99.7203% test accuracy / 0.996993 macro F1** for the seed, uncertainty and
+random arms. Uncertainty sampling showed no gain in this single-seed, near-ceiling
+experiment. [Notebook 03](notebooks/03_active_learning.ipynb) contains the protocol,
+actual curves, acquisition distributions and limitations.
+
+Projects now include Deployments, Monitoring and Review: deploy a registered model,
+test a prediction, inspect recorded traffic, correct low-confidence labels and create
+a new dataset version for retraining. See the [browser workflow](docs/DEPLOYMENTS.md#browser-workflow).

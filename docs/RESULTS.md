@@ -6,7 +6,7 @@ This is the first full-data casting baseline, trained on 2026-10-19. It uses
 pretrained ResNet-18, the frozen casting-v2 manifest, and the existing training
 recipe. Hyperparameters were fixed before test evaluation. The checkpoint was
 selected solely by validation loss; classification uses argmax with no test-tuned
-threshold. The NEU-DET baseline is recorded below; active learning remains pending.
+threshold. The NEU-DET baseline is recorded below; the active-learning comparison is recorded below.
 
 The [machine-readable snapshot](results/casting-baseline-20261019.json) contains the actual
 history, validation/test reports, ONNX metadata, verification, and artifact hashes.
@@ -346,6 +346,58 @@ dataset images stay outside Git. The final test-verified bundle is in `onnx/`;
 `onnx-validation/` retains the earlier validation-only bundle. Exact reproduction
 depends on the pinned software, hardware, worker count and source revisions.
 
+## Active-learning comparison (2026-10-25)
+
+[Notebook 03](../notebooks/03_active_learning.ipynb) and the
+[result snapshot](results/active-learning-20261025.json) record a completed casting
+experiment. The initial set is 558 images (10% per class); acquisition draws 200
+from the remaining 5,025 training images. Validation (986) and test (715) stay fixed.
+All arms use the same pretrained ResNet18 initialization and seed 42, with checkpoint
+selection by validation loss. The random acquisition seed is 43. Test evaluation
+occurs only after all three training runs finish. Source bytes and pixel-group
+separation are verified before training.
+
+| Arm | Training images | Test accuracy | Test macro F1 | Training seconds |
+| --- | ---: | ---: | ---: | ---: |
+| Initial 10% | 558 | 99.7203% | 0.996993 | 192.0 |
+| +200 least confident | 758 | 99.7203% | 0.996993 | 168.3 |
+| +200 random | 758 | 99.7203% | 0.996993 | 196.5 |
+
+All three classify 713/715 test images correctly. Uncertainty sampling gives **zero
+observed accuracy or macro-F1 improvement** over the random control or seed model.
+The acquired sets overlap by 11 images. The
+[acquisition snapshot](results/active-learning-acquisition-20261025.json) records every
+pool confidence and both selected sets. Existing public labels simulate a human
+oracle; no annotation-time claim is made. This is one seed near the accuracy
+ceiling, so it cannot establish general equivalence of acquisition strategies.
+Training durations exclude ranking, evaluation and setup. The shared RTX A6000
+allocator was limited to 20% of device memory; local services did not need CUDA.
+
+## Final integrated workflow (2026-10-25)
+
+The production browser app imported 240 labeled casting images, froze version 1,
+submitted a real two-epoch GPU job, inspected its evaluation/parity report, promoted
+and deployed its model, and sent an authenticated prediction. Background collection
+made the prediction visible in monitoring. Human review accepted the separate
+image as defective; version 2 included it in the training split (169 training images,
+versus 168 before; 36 validation and 36 test in each version).
+
+A second real GPU job used version 2 and produced distinct manifest and weight
+hashes. Its own registered model passed ONNX verification and served a prediction
+through a replacement endpoint. Both endpoints were stopped; the GPU worker and
+private forwarding session were shut down. The original version remained unchanged.
+The [portable summary](results/browser-workflow-20261025.json) records these checks.
+Both short-run test accuracies were 50%; these jobs verify plumbing, not model quality
+or an active-learning gain. The full baselines and controlled acquisition experiment
+above are separate measurements.
+
+This verification caught and fixed a stale dataset selection in the training form.
+Requested versions are loaded explicitly, and changing the version resets selection.
+Deployment likewise waits for the requested model instead of falling back to an
+older cached model. Docker Desktop shared-directory stalls were resolved by moving
+serving bundles/outboxes to Docker-managed volumes with per-deployment subpaths.
+See [storage migration](BACKEND.md#upgrade-from-host-serving-directories).
+
 ## Baseline progress
 
 - [x] Full casting training, validation-selected checkpoint, held-out evaluation.
@@ -377,9 +429,10 @@ depends on the pinned software, hardware, worker count and source revisions.
 - [x] Populated-project deletion with training cancellation, container removal and retryable storage cleanup; see [deletion](PROJECT_DELETION.md).
 - [x] Complete local Compose backend with API, CPU worker, Beat, migrations and storage initialization; see [backend operation](BACKEND.md).
 - [x] Supplied frontend integrated: accounts, projects, upload/import, labeling, versions, live training, comparison, model reports/downloads/promotion and asynchronous deletion; see [web app](../apps/web/README.md).
-- [ ] Active-learning comparison and notebook 03.
+- [x] Active-learning comparison and executed notebook 03; uncertainty and random tied in this run.
 - [x] Browser verification of the supplied frontend and its current API integration.
-- [ ] Deployment, monitoring and review screens (not included in the frontend handoff); final combined demo after those screens.
+- [x] Deployment, monitoring and review screens, including box corrections and reviewed negatives.
+- [x] Real browser-to-GPU workflow through correction, retraining and replacement deployment; [walkthrough](DEMO.md) and [verification summary](results/browser-workflow-20261025.json).
 
 Remote account names and filesystem paths in published examples and the detector
 snapshot are placeholders. Recorded metrics and artifact hashes are unchanged;

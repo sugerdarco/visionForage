@@ -115,6 +115,14 @@ class DockerRuntime:
             for k, v in {**self.labels(spec), **routing}.items()
             for argument in ("--label", f"{k}={v}")
         ]
+        bundle_mount = f"type=bind,src={bundle},dst=/bundle,readonly"
+        outbox_mount = f"type=bind,src={spec['outbox']},dst=/outbox"
+        # Named-volume subpaths avoid Docker Desktop host-filesystem stalls and
+        # expose only this deployment's files to its inference container.
+        if self.settings.deployment_bundle_volume:
+            bundle_mount = f"type=volume,src={self.settings.deployment_bundle_volume},dst=/bundle,volume-subpath={spec['id']},readonly,volume-nocopy"
+        if self.settings.deployment_prediction_volume:
+            outbox_mount = f"type=volume,src={self.settings.deployment_prediction_volume},dst=/outbox,volume-subpath={spec['id']},volume-nocopy"
         self.command(
             "container",
             "create",
@@ -144,9 +152,9 @@ class DockerRuntime:
             "--network",
             self.settings.deployment_network,
             "--mount",
-            f"type=bind,src={bundle},dst=/bundle,readonly",
+            bundle_mount,
             "--mount",
-            f"type=bind,src={spec['outbox']},dst=/outbox",
+            outbox_mount,
             "--env-file",
             "/dev/stdin",
             *labels,
