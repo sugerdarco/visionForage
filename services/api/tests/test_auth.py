@@ -21,6 +21,12 @@ PASSWORD = "a test password with spaces"
 
 
 class AuthenticationTest(APITest):
+    def test_browser_can_read_retry_after(self):
+        response = self.client.get("/healthz", headers={"Origin": "http://127.0.0.1:3000"})
+        self.assertEqual(response.headers["access-control-allow-origin"], "http://127.0.0.1:3000")
+        self.assertIn("Retry-After", response.headers["access-control-expose-headers"])
+
+
     def setUp(self):
         self.email = f"owner-{uuid4().hex}@example.com"
 

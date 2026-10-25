@@ -376,9 +376,10 @@ depends on the pinned software, hardware, worker count and source revisions.
 - [x] Low-confidence review queue, retry-safe human acceptance and inclusion in new frozen versions; see [review API](REVIEWS.md).
 - [x] Populated-project deletion with training cancellation, container removal and retryable storage cleanup; see [deletion](PROJECT_DELETION.md).
 - [x] Complete local Compose backend with API, CPU worker, Beat, migrations and storage initialization; see [backend operation](BACKEND.md).
-- [ ] Frontend screens and integration with these backend APIs.
+- [x] Supplied frontend integrated: accounts, projects, upload/import, labeling, versions, live training, comparison, model reports/downloads/promotion and asynchronous deletion; see [web app](../apps/web/README.md).
 - [ ] Active-learning comparison and notebook 03.
-- [ ] Final browser workflow verification and demo after frontend integration.
+- [x] Browser verification of the supplied frontend and its current API integration.
+- [ ] Deployment, monitoring and review screens (not included in the frontend handoff); final combined demo after those screens.
 
 Remote account names and filesystem paths in published examples and the detector
 snapshot are placeholders. Recorded metrics and artifact hashes are unchanged;

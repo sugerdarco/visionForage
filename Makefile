@@ -87,3 +87,20 @@ lint:
 
 test:
 	PYTHONPATH=packages $(PYTHON) -m unittest discover -s tests -v
+
+.PHONY: web-env web web-check web-test-browser
+web-env:
+	npm ci --prefix apps/web
+
+web:
+	npm run dev --prefix apps/web
+
+web-check:
+	npm run typecheck --prefix apps/web
+	npm run lint --prefix apps/web
+	npm run format:check --prefix apps/web
+	npm test --prefix apps/web
+	npm run build --prefix apps/web
+
+web-test-browser:
+	npm run test:e2e --prefix apps/web

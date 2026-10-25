@@ -9,12 +9,13 @@ make status
 ```
 
 `make up` now builds the backend and inference images and starts PostgreSQL, Redis,
-MinIO, Traefik, the API, the CPU worker and one Beat scheduler. One-shot services
+MinIO, Traefik, the API, the CPU worker, one Beat scheduler and the browser app. One-shot services
 create private buckets, configure temporary-upload expiry and apply Alembic
 migrations before the API/workers start. Repeating startup preserves existing data.
 No host API environment is required for this path; Docker Compose, Make and Python 3
 are required. Initial builds download pinned images and Python packages.
 
+Open the frontend at `http://127.0.0.1:3000`; see [web setup and verification](../apps/web/README.md).
 The API is at `http://127.0.0.1:8000`, with interactive documentation at `/docs`
 and dependency readiness at `/readyz`. Browser uploads use
 `http://127.0.0.1:9000`; inference uses
@@ -91,8 +92,9 @@ artifacts, and does not delete those model containers.
 The backend includes accounts, projects, uploads/imports, annotation, dataset
 versions, GPU training and recovery, live events, model reports/downloads/promotion,
 Docker deployment, prediction logging/monitoring, [human review](REVIEWS.md) and
-[populated-project cleanup](PROJECT_DELETION.md). Frontend implementation, the
-active-learning comparison notebook and final browser workflow verification remain.
+[populated-project cleanup](PROJECT_DELETION.md). The supplied frontend is integrated for data, labeling, training and model results.
+Deployment/monitoring/review screens and the active-learning comparison notebook remain
+outside that frontend handoff.
 
 ## Verification
 

@@ -1,0 +1,7 @@
+.next
+node_modules
+package-lock.json
+openapi/openapi.json
+test-results
+playwright-report
+tests/fixtures/out

@@ -4,7 +4,8 @@ A visual inspection platform for industrial defects. The planned workflow is to
 upload images, label defects, train a model, and deploy it for inference.
 
 The first milestone is reproducible classification and detection baselines.
-The backend now supports the full workflow; the browser frontend is next.
+The backend supports the full workflow. The [browser workspace](apps/web/README.md)
+now connects project data, labeling, training and model results to those services.
 The first full casting baseline is complete: **99.56% defective recall**,
 **99.72% test accuracy**, and **16.96 ms mean / 17.51 ms p95**
 model-only ONNX CPU latency. See [measured results and limitations](docs/RESULTS.md)
@@ -46,7 +47,9 @@ and results, expose history and calculate latency, class and confidence aggregat
 [Human review](docs/REVIEWS.md) adds corrected predictions to the next dataset version.
 [Populated-project deletion](docs/PROJECT_DELETION.md) coordinates job cancellation,
 container removal and storage cleanup. Run the [complete local backend](docs/BACKEND.md)
-with `make up`, including the API, CPU worker and scheduler.
+with `make up`, including the browser app at `http://127.0.0.1:3000`, API, CPU worker
+and scheduler. The supplied frontend covers data/training/model workflows; deployment,
+monitoring and review screens remain outside that handoff.
 
 ## Development setup
 

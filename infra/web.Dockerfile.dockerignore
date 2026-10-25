@@ -1,0 +1,17 @@
+*
+!apps/
+apps/*
+!apps/web/
+!apps/web/**
+apps/web/node_modules/
+apps/web/.next/
+apps/web/.env*
+apps/web/test-results/
+apps/web/playwright-report/
+apps/web/tests/fixtures/out/
+apps/web/*.tsbuildinfo
+apps/web/next-env.d.ts
+!infra/
+infra/*
+!infra/web.Dockerfile
+!infra/web.Dockerfile.dockerignore
